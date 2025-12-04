@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>北歐極光之旅 (Realtime Database 修正版)</title>
+    <title>北歐極光之旅 (修正版)</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -30,7 +29,6 @@
             databaseURL: "https://nordictravel-6feb6-default-rtdb.asia-southeast1.firebasedatabase.app/" 
         };
 
-        // 2. 填入 Google Maps API Key
         const GOOGLE_MAPS_API_KEY = "AIzaSyBT3is8sUrQfnLzrrde8ADK4cPx3_tImSo";
         // ==========================================
 
@@ -53,13 +51,16 @@
         
         #google-map { width: 100%; height: 100%; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        
+        /* 增加一個 grab cursor 指示可以拖曳 */
+        .cursor-grab { cursor: grab; }
+        .cursor-grab:active { cursor: grabbing; }
     </style>
 </head>
 <body>
 
     <div id="app" class="fixed inset-0 flex flex-col max-w-md mx-auto bg-white shadow-2xl overflow-hidden w-full z-0">
         
-        <!-- Header -->
         <header class="bg-white px-5 py-4 flex justify-between items-center z-10 border-b border-gray-100 shrink-0">
             <div class="flex-1">
                 <h1 class="text-xl font-bold text-gray-900 tracking-tight flex items-center">
@@ -77,7 +78,6 @@
             </button>
         </header>
 
-        <!-- Main Content -->
         <main class="flex-1 overflow-y-auto no-scrollbar relative bg-gray-50" ref="mainContainer">
             
             <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white z-50">
@@ -87,10 +87,8 @@
                 </div>
             </div>
 
-            <!-- Tab: Itinerary -->
             <div v-show="currentTab === 'itinerary'" class="pb-24">
                 
-                <!-- Sticky Date Selector -->
                 <div class="sticky top-0 bg-white/95 backdrop-blur z-20 shadow-sm border-b border-gray-100">
                     <div class="flex overflow-x-auto no-scrollbar py-3 px-2 space-x-2">
                         <button v-for="dateObj in uniqueDates" :key="dateObj.date"
@@ -102,10 +100,8 @@
                     </div>
                 </div>
 
-                <!-- Itinerary List -->
                 <div class="px-4 py-4 space-y-4">
                     
-                    <!-- Weather Widget (Header) -->
                     <div @click="openWeatherSite" class="bg-gradient-to-r from-blue-600 to-blue-400 p-5 rounded-2xl text-white shadow-lg cursor-pointer transform transition active:scale-[0.98] relative overflow-hidden">
                         <div class="absolute right-0 top-0 opacity-10 text-9xl -mr-4 -mt-4"><i class="fas fa-cloud"></i></div>
                         <div class="relative z-10 flex items-center justify-between">
@@ -113,10 +109,10 @@
                                 <i :class="['text-4xl mr-4', getWeatherIcon(currentWeather.condition)]"></i>
                                 <div>
                                     <div class="text-xs font-medium opacity-90 mb-1 flex items-center">
-                                        <i class="fas fa-map-marker-alt mr-1"></i> {{ currentWeather.city }}
+                                        <i class="fas fa-map-marker-alt mr-1"></i> {{ currentWeather.city || '未知地點' }}
                                     </div>
                                     <div class="text-3xl font-bold">{{ currentWeather.temp }}</div>
-                                    <div class="text-sm opacity-90">{{ currentWeather.condition }}</div>
+                                    <div class="text-sm opacity-90">{{ currentWeather.conditionText }}</div>
                                 </div>
                             </div>
                             <div class="text-right">
@@ -125,7 +121,6 @@
                         </div>
                     </div>
 
-                    <!-- No Data State -->
                     <div v-if="uniqueDates.length === 0" class="text-center py-10 text-gray-400">
                         <i class="fas fa-database text-4xl mb-3 opacity-30"></i>
                         <p>資料庫目前是空的</p>
@@ -136,7 +131,6 @@
                         <p>這一天沒有行程</p>
                     </div>
 
-                    <!-- Timeline Items -->
                     <div v-for="item in filteredItinerary" :key="item.id" class="relative pl-6 border-l-2 border-blue-100 last:border-0 pb-2">
                         <div class="absolute -left-[9px] top-3 w-4 h-4 rounded-full bg-white border-4 border-primary shadow-sm"></div>
                         <div class="bg-white p-4 rounded-2xl card-shadow active:scale-[0.99] transition-transform duration-200">
@@ -160,7 +154,6 @@
                 </div>
             </div>
 
-            <!-- Tab: Expenses -->
             <div v-show="currentTab === 'expenses'" class="pb-24">
                 <div class="p-5 space-y-3">
                     <div class="grid grid-cols-2 gap-3">
@@ -203,7 +196,6 @@
                 </div>
             </div>
 
-            <!-- Tab: Map -->
             <div v-show="currentTab === 'map'" class="w-full h-full relative">
                 <div id="google-map" class="w-full h-full bg-gray-200"></div>
                 
@@ -213,17 +205,23 @@
                     </button>
                 </div>
 
-                <!-- Bottom Sheet -->
                 <div 
                     class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-up z-20 flex flex-col transition-all duration-300 ease-out"
-                    :style="{ height: isBottomSheetOpen ? '60%' : '60px', paddingBottom: '20px' }"
+                    :style="{ height: isBottomSheetOpen ? '70%' : '140px', paddingBottom: '20px' }"
                 >
-                    <div @click="isBottomSheetOpen = !isBottomSheetOpen" class="w-full h-[60px] flex items-center justify-between px-6 cursor-pointer border-b border-gray-100 flex-shrink-0">
-                        <h3 class="font-bold text-gray-800">所有地點 ({{ uniqueLocations.length }})</h3>
-                        <i :class="['fas text-gray-400 transition-transform', isBottomSheetOpen ? 'fa-chevron-down' : 'fa-chevron-up']"></i>
+                    <div 
+                        @click="toggleBottomSheet"
+                        @touchstart="handleTouchStart"
+                        @touchend="handleTouchEnd"
+                        class="w-full h-[60px] flex items-center justify-between px-6 cursor-grab border-b border-gray-100 flex-shrink-0 touch-none bg-white rounded-t-3xl"
+                    >
+                        <div class="absolute top-2 left-1/2 transform -translate-x-1/2 w-10 h-1 bg-gray-300 rounded-full"></div>
+                        
+                        <h3 class="font-bold text-gray-800 mt-2">所有地點 ({{ uniqueLocations.length }})</h3>
+                        <i :class="['fas text-gray-400 transition-transform mt-2', isBottomSheetOpen ? 'fa-chevron-down' : 'fa-chevron-up']"></i>
                     </div>
 
-                    <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50" v-show="isBottomSheetOpen">
+                    <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
                         <p v-if="uniqueLocations.length === 0" class="text-center text-gray-400 text-sm py-4">無地點資料</p>
                         
                         <div v-for="(loc, index) in uniqueLocations" :key="loc"
@@ -247,7 +245,6 @@
 
         </main>
 
-        <!-- Bottom Navigation -->
         <nav class="bg-white border-t border-gray-100 py-2 px-4 flex justify-around items-center shrink-0 pb-safe z-30">
             <button @click="switchTab('itinerary')" :class="['flex flex-col items-center py-2 px-4 transition', currentTab === 'itinerary' ? 'text-primary scale-105' : 'text-gray-400']">
                 <i class="fas fa-calendar-alt text-xl mb-1"></i>
@@ -263,7 +260,6 @@
             </button>
         </nav>
 
-        <!-- Add Modal -->
         <div v-if="showAddModal" class="fixed inset-0 bg-black/50 flex items-end z-50 animate-fadeIn" @click.self="closeModal">
             <div class="bg-white w-full rounded-t-3xl p-6 pb-safe slide-up">
                 <h2 class="text-xl font-bold mb-4">{{ currentTab === 'itinerary' ? (isEditing ? '編輯行程' : '新增行程') : '新增支出' }}</h2>
@@ -282,7 +278,7 @@
                 <div v-else class="space-y-3">
                     <input v-model="expenseForm.title" type="text" placeholder="項目" class="w-full p-3 border rounded-xl bg-gray-50">
                     <div class="flex gap-2">
-                        <input v-model.number="expenseForm.amount" type="number" placeholder="金額 (€)" class="w-1/2 p-3 border rounded-xl bg-gray-50">
+                        <input v-model.number="expenseForm.amount" type="number" inputmode="decimal" step="0.01" placeholder="金額 (€)" class="w-1/2 p-3 border rounded-xl bg-gray-50">
                         <input v-model="expenseForm.date" type="date" class="w-1/2 p-3 border rounded-xl bg-gray-50">
                     </div>
                     <div class="flex gap-2 overflow-x-auto pb-2">
@@ -325,6 +321,10 @@
                 const selectedLocation = ref(null);
                 const mapLoaded = ref(false);
 
+                // Touch handling variables
+                let touchStartY = 0;
+                let touchEndY = 0;
+
                 const users = ['Han', 'Sylvia', 'Messi', 'Cheryl'];
                 const EURO_TO_TWD = 34.5;
                 
@@ -332,7 +332,12 @@
                 const expenses = ref([]);
                 const itineraryForm = reactive({ date: '', time: '09:00', title: '', location: '', notes: '' });
                 const expenseForm = reactive({ title: '', amount: '', date: '', payer: users[0], beneficiaries: [...users] });
-                const currentWeather = reactive({ temp: 'N/A', condition: 'cloudy', city: 'Nordic' });
+                
+                // [FIX 1] 天氣預設為 N/A
+                const currentWeather = reactive({ temp: 'N/A', condition: 'unknown', city: 'N/A', conditionText: '未知' });
+                
+                // Geolocation Marker Storage
+                let currentUserMarker = null;
 
                 let map = null;
                 let markers = [];
@@ -345,13 +350,10 @@
                     return '地圖導覽';
                 });
 
-                // [修正] 完全根據 DB 資料生成日期，不再硬編碼
                 const uniqueDates = computed(() => {
                     const dates = new Set(itineraryItems.value.map(i => i.date));
-                    // 只有當 DB 完全沒資料時，才不顯示任何日期，避免誤導
                     return Array.from(dates).filter(d => d).sort().map(d => {
                         const dateObj = new Date(d);
-                        // 修正月份顯示 (+1)
                         return { 
                             date: d, 
                             display: `${dateObj.getMonth()+1}/${dateObj.getDate()} (${getDayName(d)})` 
@@ -366,7 +368,6 @@
 
                 const daysLeftText = computed(() => {
                     if(!selectedDate.value) return '';
-                    // 根據日期列表的順序顯示第幾天
                     const index = uniqueDates.value.findIndex(d => d.date === selectedDate.value);
                     return index >= 0 ? `Day ${index + 1}` : '';
                 });
@@ -399,30 +400,23 @@
                     snap.forEach(childSnapshot => {
                         list.push({ id: childSnapshot.key, ...childSnapshot.val() });
                     });
-                    console.log(`從 DB 載入了 ${list.length} 筆資料`); // [Debug]
                     return list;
                 };
 
                 onMounted(() => {
-                    // Auth
                     if (typeof __initial_auth_token !== 'undefined') auth.signInWithCustomToken(__initial_auth_token);
                     else auth.signInAnonymously();
 
-                    // Load Data
                     itineraryRef.on('value', s => {
                         itineraryItems.value = snapshotToArray(s);
                         loading.value = false;
-                        
-                        // [修正] 資料載入後，如果目前沒有選日期，自動選第一天
                         if (!selectedDate.value && uniqueDates.value.length > 0) {
                             selectedDate.value = uniqueDates.value[0].date;
                         }
-                        
                         updateWeather();
                     });
                     expensesRef.on('value', s => expenses.value = snapshotToArray(s));
 
-                    // Load Maps
                     if (GOOGLE_MAPS_API_KEY) {
                         const script = document.createElement('script');
                         script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initMap`;
@@ -493,18 +487,62 @@
                     }
                 };
 
+                // [FIX 2] Bottom Sheet Logic
+                const toggleBottomSheet = () => {
+                    isBottomSheetOpen.value = !isBottomSheetOpen.value;
+                }
+                
                 const selectLocation = (loc) => {
                     selectedLocation.value = loc;
                     focusMap(loc);
+                    // 點擊地點後不完全關閉，而是縮小到底部，方便看地圖
                     isBottomSheetOpen.value = false; 
                 };
+                
+                const handleTouchStart = (e) => {
+                    touchStartY = e.touches[0].clientY;
+                };
+                
+                const handleTouchEnd = (e) => {
+                    touchEndY = e.changedTouches[0].clientY;
+                    handleSwipe();
+                };
+                
+                const handleSwipe = () => {
+                    const diff = touchStartY - touchEndY;
+                    if (Math.abs(diff) > 30) { // 門檻值
+                        if (diff > 0) {
+                            // 向上滑動 -> 展開
+                            isBottomSheetOpen.value = true;
+                        } else {
+                            // 向下滑動 -> 收合
+                            isBottomSheetOpen.value = false;
+                        }
+                    }
+                };
 
+                // [FIX 1] Weather Logic
                 const updateWeather = () => {
-                    if(!filteredItinerary.value.length) return;
-                    const loc = filteredItinerary.value[0].location || 'Nordic';
-                    currentWeather.city = loc.split(',')[0];
-                    currentWeather.temp = Math.floor(Math.random() * 5 - 5) + "°C";
-                    currentWeather.condition = loc.includes('Rova') ? 'snow' : 'cloudy';
+                    // 如果沒有行程資料，重置為 N/A
+                    if(!filteredItinerary.value.length) {
+                        currentWeather.city = 'N/A';
+                        currentWeather.temp = 'N/A';
+                        currentWeather.condition = 'unknown';
+                        currentWeather.conditionText = '無資料';
+                        return;
+                    }
+                    
+                    // 取得第一個地點名稱
+                    const loc = filteredItinerary.value[0].location;
+                    const city = loc ? loc.split(',')[0] : 'N/A';
+                    currentWeather.city = city;
+                    
+                    // 因為沒有 Weather API Key，這裡嚴格遵守指示：
+                    // 不給假資料。如果沒有真實 API，就顯示 N/A。
+                    // 為了不讓畫面太醜，這裡保留資料結構，但數值設為 N/A。
+                    currentWeather.temp = 'N/A';
+                    currentWeather.condition = 'unknown';
+                    currentWeather.conditionText = '無法取得';
                 };
 
                 // UI Helpers
@@ -541,11 +579,80 @@
 
                 const formatMoneyEuro = (v) => "€" + v.toFixed(2);
                 const formatMoneyEuroWithTWD = (v) => `€${v.toFixed(2)} (~NT$${Math.round(v*34)})`;
-                const getWeatherIcon = (c) => c.includes('snow') ? 'fas fa-snowflake' : 'fas fa-cloud';
+                const getWeatherIcon = (c) => {
+                    if (c === 'snow') return 'fas fa-snowflake';
+                    if (c === 'rain') return 'fas fa-cloud-showers-heavy';
+                    if (c === 'clear') return 'fas fa-sun';
+                    return 'fas fa-cloud'; // Default
+                };
                 const getUserPaid = (u) => expenses.value.filter(e => e.payer === u).reduce((s,e) => s+Number(e.amount), 0);
                 const jumpToMap = (loc) => { selectedLocation.value = loc; switchTab('map'); };
-                const openWeatherSite = () => window.open(`https://wttr.in/${currentWeather.city}`, '_blank');
-                const focusCurrentLocation = () => alert("定位功能需 HTTPS 支援");
+                const openWeatherSite = () => {
+                    if (currentWeather.city && currentWeather.city !== 'N/A') {
+                        window.open(`https://wttr.in/${currentWeather.city}`, '_blank');
+                    }
+                };
+
+                // [FIX 4] Geolocation Implementation
+                const focusCurrentLocation = () => {
+                    if (!map) return;
+                    
+                    if (!navigator.geolocation) {
+                        alert("您的瀏覽器不支援定位功能");
+                        return;
+                    }
+
+                    // 顯示讀取中狀態 (可選)
+                    // alert("正在定位中..."); 
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const pos = {
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude,
+                            };
+
+                            // 移動地圖中心
+                            map.setCenter(pos);
+                            map.setZoom(15);
+
+                            // 如果已經有舊的定位標記，先移除
+                            if (currentUserMarker) {
+                                currentUserMarker.setMap(null);
+                            }
+
+                            // 新增一個藍色圓點標記 (使用 SVG 繪製一個藍點)
+                            currentUserMarker = new google.maps.Marker({
+                                position: pos,
+                                map: map,
+                                title: "現在位置",
+                                icon: {
+                                    path: google.maps.SymbolPath.CIRCLE,
+                                    scale: 8,
+                                    fillColor: "#4285F4",
+                                    fillOpacity: 1,
+                                    strokeColor: "white",
+                                    strokeWeight: 2,
+                                },
+                            });
+                        },
+                        (error) => {
+                            console.error("Error getting location: ", error);
+                            let msg = "定位失敗";
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED: msg = "您拒絕了定位權限"; break;
+                                case error.POSITION_UNAVAILABLE: msg = "無法偵測目前位置"; break;
+                                case error.TIMEOUT: msg = "定位逾時"; break;
+                            }
+                            alert(msg);
+                        },
+                        {
+                            enableHighAccuracy: true, // 要求高精準度
+                            timeout: 5000,
+                            maximumAge: 0
+                        }
+                    );
+                };
 
                 return {
                     loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement,
@@ -553,7 +660,8 @@
                     uniqueDates, selectedDate, filteredItinerary, uniqueLocations, sortedExpenses, totalExpense, settlements,
                     isBottomSheetOpen, selectedLocation,
                     selectDate, switchTab, openAddModal, closeModal, saveItinerary, saveExpense, deleteItem, editItem,
-                    formatMoneyEuro, formatMoneyEuroWithTWD, getWeatherIcon, getUserPaid, jumpToMap, openWeatherSite, selectLocation, focusCurrentLocation
+                    formatMoneyEuro, formatMoneyEuroWithTWD, getWeatherIcon, getUserPaid, jumpToMap, openWeatherSite, selectLocation, 
+                    focusCurrentLocation, toggleBottomSheet, handleTouchStart, handleTouchEnd
                 };
             }
         };
