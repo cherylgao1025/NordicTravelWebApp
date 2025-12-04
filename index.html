@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>北歐極光之旅 (完整版 - Debugged)</title>
+    <title>北歐極光之旅 (RTDB 共享版)</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- 引入 Realtime Database SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
     <script>
         // ==========================================
         // 🚨 CONFIG AREA - 請在這裡填入您的金鑰 🚨
-        // 🚨 這是除錯的關鍵步驟，請勿留空 🚨
         // ==========================================
         
         // 1. 填入 Firebase Config
@@ -26,7 +26,8 @@
             storageBucket: "nordictravel-6feb6.firebasestorage.app",
             messagingSenderId: "789294490352",
             appId: "1:789294490352:web:cc4b3570743ece12db9835",
-            measurementId: "G-J48HZ2031Q"
+            measurementId: "G-J48HZ2031Q",
+            databaseURL: "https://nordictravel-6feb6-default-rtdb.asia-southeast1.firebasedatabase.app/" 
 };
 
         // 2. 填入 Google Maps API Key
@@ -43,45 +44,34 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
         
-        /* 基礎設定 */
         body { 
             font-family: 'Noto Sans TC', sans-serif; 
             background-color: #F3F4F6; 
             -webkit-tap-highlight-color: transparent;
-            overscroll-behavior: none; /* 防止 iOS 橡皮筋效果 */
+            overscroll-behavior: none;
         }
-
-        /* 隱藏滾動條 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        /* UI 陰影與動畫 */
         .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
         .weather-icon { animation: float 3s ease-in-out infinite; }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
         .slide-up { animation: slideUp 0.3s ease-out forwards; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1); } }
         
-        /* Tab 樣式 */
         .tab-active { background-color: #3B82F6; color: white; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5); transform: scale(1.05); }
         .tab-inactive { background-color: #F3F4F6; color: #6B7280; }
-
-        /* 地圖容器 */
         #google-map { width: 100%; height: 100%; }
-
-        /* iOS Safe Area 適配 */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
         
-        /* 數字標記 */
         .map-number-badge {
             display: flex;
             align-items: center;
             justify-content: center;
             width: 24px;
             height: 24px;
-            background-color: #EF4444; /* red-500 */
+            background-color: #EF4444; 
             color: white;
             border-radius: 50%;
             font-size: 12px;
@@ -94,8 +84,10 @@
 </head>
 <body>
 
+    <!-- App Container -->
     <div id="app" class="fixed inset-0 flex flex-col max-w-md mx-auto bg-white shadow-2xl overflow-hidden w-full z-0">
         
+        <!-- Header -->
         <header class="bg-white px-5 py-4 flex justify-between items-center z-10 border-b border-gray-100 shrink-0">
             <div class="flex-1">
                 <h1 class="text-xl font-bold text-gray-900 tracking-tight flex items-center">
@@ -113,16 +105,19 @@
             </button>
         </header>
 
+        <!-- Main Content -->
         <main class="flex-1 overflow-y-auto no-scrollbar relative bg-gray-50" ref="mainContainer">
             
             <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white z-50">
                 <div class="flex flex-col items-center">
                     <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-3"></div>
-                    <p class="text-sm text-gray-400">正在同步雲端資料...</p>
+                    <p class="text-sm text-gray-400">正在同步雲端資料並檢查資料庫...</p>
                 </div>
             </div>
 
+            <!-- Tab: Itinerary -->
             <div v-if="currentTab === 'itinerary'" class="pb-24">
+                <!-- Date Scroll -->
                 <div class="sticky top-0 bg-white/95 backdrop-blur z-10 shadow-sm border-b border-gray-100">
                     <div class="flex overflow-x-auto no-scrollbar py-3 px-2 space-x-2" ref="dateScroll">
                         <button v-for="date in uniqueDates" :key="date.date"
@@ -133,6 +128,7 @@
                         </button>
                     </div>
 
+                    <!-- Weather Widget -->
                     <div @click="openWeatherSite" class="flex items-center mx-4 my-2 p-3 bg-blue-50 rounded-xl cursor-pointer hover:bg-blue-100 transition active:scale-[0.98]">
                         <i :class="['text-3xl mr-3 weather-icon', getWeatherIcon(currentWeather.condition)]"></i>
                         <div class="text-left flex-1">
@@ -143,6 +139,7 @@
                     </div>
                 </div>
 
+                <!-- Itinerary List -->
                 <div class="px-4 py-6 space-y-4">
                     <div v-if="filteredItinerary.length === 0" class="text-center py-10 text-gray-400">
                         <i class="fas fa-snowflake text-4xl mb-3 opacity-30"></i>
@@ -156,11 +153,13 @@
                                 <span class="text-primary font-bold text-sm bg-blue-50 px-2 py-0.5 rounded">{{ item.time }}</span>
                                 <div class="flex space-x-3 text-gray-400">
                                     <button @click="editItem(item)" class="hover:text-primary"><i class="fas fa-pen text-xs"></i></button>
-                                    <button @click="deleteItem(item.id, 'itinerary')" class="hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>
+                                    <!-- 使用 confirmDelete 觸發自訂模態框 -->
+                                    <button @click="confirmDelete(item.id, 'itinerary', item.title)" class="hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>
                                 </div>
                             </div>
                             <h3 class="font-bold text-gray-800 text-lg mb-1">{{ item.title }}</h3>
                             
+                            <!-- Location (Clickable) -->
                             <div v-if="item.location" class="flex items-center text-gray-500 text-sm mb-2 mt-2 cursor-pointer hover:text-blue-600 transition" @click="jumpToMap(item.location)">
                                 <i class="fas fa-map-marker-alt text-red-400 mr-2"></i>
                                 <span class="underline decoration-dotted decoration-gray-400">{{ item.location }}</span>
@@ -173,6 +172,7 @@
                 </div>
             </div>
 
+            <!-- Tab: Expenses -->
             <div v-if="currentTab === 'expenses'" class="pb-24">
                 <div class="p-5 space-y-3">
                     <div class="space-y-3">
@@ -186,7 +186,7 @@
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="font-bold text-green-800 flex items-center"><i class="fas fa-calculator mr-2"></i> 分帳結算</h3>
                             <button @click="showSettlement = !showSettlement" class="text-green-600 text-sm hover:text-green-700">
-                                <i :class="showSettlement ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
+                                <i :class="showSettlement ? 'fas fa-chevron-up' : 'fas fa-chevron-down']"></i>
                             </button>
                         </div>
                         <div v-if="showSettlement" class="space-y-2">
@@ -210,7 +210,8 @@
                                         <i class="far fa-calendar mr-1"></i> {{ exp.date }}
                                     </div>
                                 </div>
-                                <button @click="deleteItem(exp.id, 'expenses')" class="text-gray-400 hover:text-red-500 ml-2">
+                                <!-- 使用 confirmDelete 觸發自訂模態框 -->
+                                <button @click="confirmDelete(exp.id, 'expenses', exp.title)" class="text-gray-400 hover:text-red-500 ml-2">
                                     <i class="fas fa-trash text-xs"></i>
                                 </button>
                             </div>
@@ -231,6 +232,7 @@
                 </div>
             </div>
 
+            <!-- Tab: Map -->
             <div v-if="currentTab === 'map'" class="h-full flex flex-col">
                 <div class="flex-1 relative bg-gray-200">
                     <div id="google-map"></div>
@@ -243,6 +245,7 @@
 
         </main>
 
+        <!-- Bottom Navigation -->
         <nav class="bg-white border-t border-gray-100 py-2 px-4 flex justify-around items-center shrink-0 pb-safe z-50">
             <button @click="switchTab('itinerary')" :class="['flex flex-col items-center py-2 px-4 transition-colors', currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400']">
                 <i class="fas fa-calendar-alt text-xl mb-1"></i>
@@ -258,14 +261,15 @@
             </button>
         </nav>
         
+        <!-- Map Locations Bottom Sheet -->
         <div v-if="currentTab === 'map'" 
             :class="['fixed inset-x-0 bottom-[60px] max-w-md mx-auto z-40 transition-transform duration-300 ease-out pb-safe', 
-                     isMapSheetOpen ? 'translate-y-0' : 'translate-y-full']"
+                     isMapSheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-52px)]']"
             @click.self="isMapSheetOpen = false"
-            style="height: auto; max-height: 85vh;">
+            style="height: 100%; max-height: calc(100vh - 120px);"> 
             
             <div @click="isMapSheetOpen = !isMapSheetOpen" 
-                 class="p-3 bg-white rounded-t-3xl shadow-2xl cursor-pointer">
+                 class="p-3 bg-white rounded-t-3xl shadow-2xl cursor-pointer shrink-0">
                 <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2"></div>
                 <div class="flex justify-between items-center px-2">
                     <h3 class="font-bold text-lg text-gray-800">所有行程地點 ({{ uniqueLocations.length }})</h3>
@@ -273,7 +277,7 @@
                 </div>
             </div>
 
-            <div class="bg-white px-4 py-3 overflow-y-auto no-scrollbar" :style="{ maxHeight: 'calc(85vh - 50px - env(safe-area-inset-bottom))' }">
+            <div class="bg-white px-4 py-3 overflow-y-auto no-scrollbar" style="max-height: 100%;">
                 
                 <button @click="focusCurrentLocation" 
                     class="w-full bg-blue-50 p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-blue-100 active:scale-95 transition border border-blue-100 my-2">
@@ -299,6 +303,9 @@
                 </button>
             </div>
         </div>
+        <!-- End of Map Locations Bottom Sheet -->
+
+        <!-- Add Modal -->
         <div v-if="showAddModal" @click.self="closeModal" class="fixed inset-0 bg-black/50 flex items-end z-50 animate-fadeIn">
             <div class="bg-white w-full rounded-t-3xl p-6 pb-safe max-h-[85vh] overflow-y-auto slide-up">
                 <div class="flex justify-between items-center mb-5">
@@ -349,6 +356,28 @@
             </div>
         </div>
         
+        <!-- Custom Delete Confirmation Modal (取代 confirm()) -->
+        <div v-if="showDeleteModal" @click.self="showDeleteModal = false" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] animate-fadeIn p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 slide-up">
+                <h3 class="text-xl font-bold text-red-600 mb-3 flex items-center">
+                    <i class="fas fa-exclamation-triangle mr-2"></i> 確認刪除
+                </h3>
+                <p class="text-gray-700 mb-6">您確定要刪除以下項目嗎？此操作無法復原。</p>
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-6">
+                     <span class="font-medium text-gray-800">{{ deleteTarget.title }}</span>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button @click="showDeleteModal = false" class="px-4 py-2 text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition font-medium">
+                        取消
+                    </button>
+                    <button @click="executeDelete" class="px-4 py-2 text-white bg-red-500 rounded-lg hover:bg-red-600 transition font-bold active:scale-95">
+                        確定刪除
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast / Snackbar 元件 (用於成功/失敗反饋) -->
         <div v-if="toast.isVisible" 
              :class="['fixed inset-x-4 bottom-[80px] z-[99] p-4 rounded-lg shadow-xl text-white transition-opacity duration-300', 
                      toast.isError ? 'bg-red-500' : 'bg-green-500']">
@@ -366,10 +395,15 @@
         const App = {
             setup() {
                 // --- Initialization ---
+                if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+                    console.error("🚨 錯誤: Firebase Config 未設定！請填入您的金鑰。App 將無法連線資料庫。");
+                }
+
                 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-                const db = firebase.firestore();
-                const itineraryRef = db.collection('itinerary');
-                const expensesRef = db.collection('expenses');
+                
+                const db = firebase.database();
+                const itineraryRef = db.ref('itinerary');
+                const expensesRef = db.ref('expenses');
                 
                 // --- State ---
                 const loading = ref(true);
@@ -380,10 +414,11 @@
                 const showSettlement = ref(false);
                 const selectedDate = ref('');
                 
-                // [新增] Bottom Sheet 狀態 (地圖)
+                const showDeleteModal = ref(false);
+                const deleteTarget = reactive({ id: null, col: null, title: '' });
+
                 const isMapSheetOpen = ref(false); 
 
-                // [新增] Toast 狀態
                 const toast = reactive({
                     message: '',
                     isVisible: false,
@@ -401,10 +436,8 @@
                 const itineraryForm = reactive({ date: '', time: '09:00', title: '', location: '', notes: '' });
                 const expenseForm = reactive({ title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
 
-                // Weather State (動態)
                 const currentWeather = reactive({ temp: 'N/A', condition: 'cloudy', city: 'Nordic' });
                 
-                // Google Maps Objects
                 let map = null;
                 let markers = [];
                 let geocoder = null;
@@ -421,10 +454,8 @@
 
                 const uniqueDates = computed(() => {
                     const allDates = new Set(itineraryItems.value.map(i => i.date));
-                    // 預先加入一些關鍵日期，確保即使沒行程也有 Tab
-                    ['2025-12-20', '2025-12-21', '2025-12-23', '2025-12-31', '2026-01-03', '2026-01-05'].forEach(d => allDates.add(d));
-                    
-                    return Array.from(allDates).sort().map((date, index) => {
+                    // 過濾掉空日期並排序
+                    return Array.from(allDates).filter(d => d).sort().map((date, index) => {
                         const dayNumber = index + 1;
                         const dayName = getDayName(date);
                         return {
@@ -465,11 +496,106 @@
                 });
 
                 const daysLeftText = computed(() => {
-                    const allDates = Array.from(new Set(itineraryItems.value.map(i => i.date))).sort();
+                    const allDates = Array.from(new Set(itineraryItems.value.map(i => i.date))).filter(d => d).sort();
                     const index = allDates.indexOf(selectedDate.value);
                     if (index === -1) return '非行程日';
                     return `第 ${index + 1} 天`;
                 });
+
+                // --- Data Transformation & Seeding (RTDB 專用) ---
+                const snapshotToArray = (snapshot) => {
+                    const list = [];
+                    // RTDB snapshot value is an object of key-value pairs
+                    const data = snapshot.val(); 
+                    if (data) {
+                        Object.keys(data).forEach(key => {
+                            list.push({ id: key, ...data[key] });
+                        });
+                    }
+                    return list;
+                };
+
+                const defaultItinerary = {
+                    key1: { date: '2025-12-20', time: '09:00', title: '抵達斯德哥爾摩', location: 'Arlanda Airport, Stockholm, Sweden', notes: '搭乘機場快線前往市區飯店。' },
+                    key2: { date: '2025-12-20', time: '14:00', title: '舊城區漫步', location: 'Gamla Stan, Stockholm, Sweden', notes: '參觀諾貝爾博物館和斯德哥爾摩王宮。' },
+                    key3: { date: '2025-12-21', time: '10:00', title: 'Vasa 戰艦博物館', location: 'Vasa Museum, Stockholm, Sweden', notes: '世界上保存最完整的 17 世紀船隻。' }
+                };
+
+                const defaultExpenses = {
+                    key1: { title: '機場快線車票', amount: 60.00, date: '2025-12-20', payer: 'Han', beneficiaries: ['Han', 'Sylvia'] },
+                    key2: { title: 'Vasa 博物館門票', amount: 40.00, date: '2025-12-21', payer: 'Sylvia', beneficiaries: ['Han', 'Sylvia'] }
+                };
+                
+                const checkAndSeedData = () => {
+                    itineraryRef.once('value').then(snapshot => {
+                        if (!snapshot.exists() || snapshot.numChildren() === 0) {
+                            itineraryRef.set(defaultItinerary)
+                                .then(() => console.log("Itinerary seeded successfully."))
+                                .catch(e => console.error("Error seeding itinerary:", e));
+                        }
+                    });
+
+                    expensesRef.once('value').then(snapshot => {
+                        if (!snapshot.exists() || snapshot.numChildren() === 0) {
+                            expensesRef.set(defaultExpenses)
+                                .then(() => console.log("Expenses seeded successfully."))
+                                .catch(e => console.error("Error seeding expenses:", e));
+                        }
+                    });
+                };
+                
+                // --- Data Listeners ---
+                onMounted(() => {
+                    checkAndSeedData(); // 檢查並填充預設資料
+
+                    if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== "YOUR_GOOGLE_MAPS_KEY") {
+                        const script = document.createElement('script');
+                        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initMap`;
+                        script.async = true;
+                        script.defer = true;
+                        document.head.appendChild(script);
+                        window.initMap = initMap;
+                    }
+
+                    // RTDB Itinerary 監聽器
+                    itineraryRef.on('value', (snapshot) => {
+                        itineraryItems.value = snapshotToArray(snapshot);
+                        loading.value = false;
+                        
+                        if (uniqueDates.value.length > 0 && !selectedDate.value) {
+                             // 確保有行程時選中第一個日期
+                             selectedDate.value = uniqueDates.value[0].date;
+                        } else if (uniqueDates.value.length === 0) {
+                             // 如果資料被清空，重設日期
+                             selectedDate.value = '';
+                        }
+                        
+                        updateWeather();
+                    }, (error) => {
+                        console.error("Firebase Itinerary Listener 錯誤 (請檢查 RTDB Rules/Config): ", error);
+                        loading.value = false; // 即使失敗也要解除載入
+                        showToast(`行程資料同步失敗 (請檢查 RTDB 規則): ${error.message.substring(0, 30)}...`, true);
+                    });
+
+                    // RTDB Expenses 監聽器
+                    expensesRef.on('value', (snapshot) => {
+                        expenses.value = snapshotToArray(snapshot);
+                    }, (error) => {
+                        console.error("Firebase Expenses Listener 錯誤 (請檢查 RTDB Rules/Config): ", error);
+                        showToast(`支出資料同步失敗 (請檢查 RTDB 規則): ${error.message.substring(0, 30)}...`, true); 
+                    });
+                });
+                
+                watch(selectedDate, () => {
+                     updateWeather(); 
+                     if (mainContainer.value) mainContainer.value.scrollTop = 0;
+                });
+
+                watch(uniqueLocations, () => {
+                    if (map && mapLoaded.value) updateMapMarkers();
+                }, { deep: true });
+
+                const selectDate = (date) => { selectedDate.value = date; };
 
                 // --- Methods: Weather Logic ---
                 const updateWeather = () => {
@@ -492,107 +618,18 @@
                     currentWeather.city = city; currentWeather.temp = temp; currentWeather.condition = condition;
                 };
                 
-                // [修改] openWeatherSite: 優先嘗試開啟原生 App
                 const openWeatherSite = () => {
                     const city = currentWeather.city;
                     if (city === 'Nordic' || city === 'N/A') {
                          return showToast('目前無精確地點資訊，無法提供天氣連結', true);
                     }
-
-                    // 嘗試開啟 iOS/iPadOS 原生 App (Safari 支援)
-                    // weather:// 會嘗試開啟 Apple Weather App
                     const nativeUrl = `weather://?action=view&name=${city}`; 
-
-                    // 嘗試使用原生 App URL
                     window.location.href = nativeUrl;
-
-                    // 設定延遲，如果原生 App 開啟失敗 (或在 Android/PC 上)，則 fallback 到網頁
+                    
                     setTimeout(() => {
-                        // 檢查是否已切換到原生 App，若無則開啟網頁
                         window.open(`https://wttr.in/${city}`, '_blank');
                     }, 300); 
                 };
-
-                // --- Data Seeding ---
-                const checkAndSeedData = async () => {
-                    const snapshot = await itineraryRef.limit(1).get();
-                    if (snapshot.empty) {
-                        console.log("偵測到無資料，開始匯入完整行程...");
-                        const seedData = [
-                            { date: '2025-12-20', time: '18:50', title: '出發：台北飛曼谷', location: '桃園國際機場 (TPE)', notes: 'TG635 (泰國國際航空) TPE -> BKK (21:45)' },
-                            { date: '2025-12-21', time: '00:05', title: '轉機：曼谷飛斯德哥爾摩', location: '蘇凡納布機場 (BKK)', notes: 'TG960 (泰國國際航空) BKK -> ARN (06:45)' },
-                            { date: '2025-12-21', time: '09:00', title: '斯德哥爾摩市區獨旅', location: 'Stockholm City', notes: '探索老城區、瓦薩沈船博物館' },
-                            { date: '2025-12-22', time: '09:00', title: '斯德哥爾摩市區獨旅', location: 'Stockholm City', notes: '地鐵藝術巡禮、攝影博物館' },
-                            { date: '2025-12-23', time: '08:20', title: '前往赫爾辛基 (會合)', location: '斯德哥爾摩阿蘭達機場 (ARN)', notes: 'SK702 (SAS) ARN -> HEL (10:35)。朋友 KL1251 13:10 抵達。' },
-                            { date: '2025-12-23', time: '14:00', title: '赫爾辛基大教堂與市區', location: 'Helsinki Cathedral', notes: '集市廣場、設計區、聖誕市集+晚餐' },
-                            { date: '2025-12-24', time: '09:50', title: '飛往羅瓦涅米', location: '赫爾辛基機場 (HEL)', notes: 'AY549 HEL -> RVN (11:10)。' },
-                            { date: '2025-12-24', time: '12:00', title: '聖誕老人村', location: 'Santa Claus Village', notes: '寄明信片、拍照。14:40接送去極光玻璃屋。' },
-                            { date: '2025-12-25', time: '09:00', title: '聖誕老人村一日遊', location: 'Santa Claus Village', notes: 'KKday行程、雪橇、皇宮公園。' },
-                            { date: '2025-12-26', time: '08:00', title: '雪橇 & 極光日', location: 'Nordic Unique Travels', notes: '集合出發。晚上飛往奧斯陸 (AY536->AY919)。' },
-                            { date: '2025-12-27', time: '10:00', title: '奧斯陸市區觀光', location: 'National Museum, Oslo', notes: '下午 National Museum, Frogner Park, Aker Brygge 夜景。' },
-                            { date: '2025-12-28', time: '09:00', title: '奧斯陸歌劇院與市區', location: 'Oslo Opera House', notes: 'MUNCH Museum, 海岸觀景點, 聖誕市集。' },
-                            { date: '2025-12-29', time: '10:30', title: '峽灣遊船', location: 'Rådhusbrygge 2, Oslo', notes: '10:30-13:00 遊船。下午前往 Bergen。' },
-                            { date: '2025-12-30', time: '14:00', title: 'Holmenkollen 雪國跳台', location: 'Holmenkollen Ski Jump', notes: '晚間返回奧斯陸機場旁住宿。' },
-                            { date: '2025-12-31', time: '11:05', title: '飛往哥本哈根 (跨年)', location: '奧斯陸加勒穆恩機場 (OSL)', notes: 'SK1467 OSL -> CPH (12:20)。' },
-                            { date: '2025-12-31', time: '20:00', title: '新港跨年', location: 'Nyhavn, Copenhagen', notes: '港邊或市府廣場跨年，夜店慶祝。' },
-                            { date: '2026-01-01', time: '10:00', title: '哥本哈根一日遊', location: 'Amalienborg', notes: '羅森堡城堡、阿馬林堡宮、Tivoli 花園。' },
-                            { date: '2026-01-02', time: '09:00', title: '瑞典馬爾摩之旅', location: 'Malmö, Sweden', notes: '搭火車前往，參觀隆德大教堂。' },
-                            { date: '2026-01-03', time: '10:00', title: '馬爾摩觀光', location: 'Turning Torso, Malmö', notes: '旋轉大樓、Malmo Castle。下午前往機場。' },
-                            { date: '2026-01-03', time: '18:00', title: '回程：哥本哈根飛北京', location: '哥本哈根機場 (CPH)', notes: 'CA878 (國航) CPH -> PEK (09:45+1)。朋友續留哥本哈根逛 Tivoli。' },
-                            { date: '2026-01-04', time: '09:45', title: '抵達北京轉機', location: '北京首都國際機場 (PEK)', notes: '等待轉機。' },
-                            { date: '2026-01-05', time: '08:20', title: '回程：北京飛台北', location: '北京首都國際機場 (PEK)', notes: 'CA185 PEK -> TPE (11:40)。' }
-                        ];
-
-                        const batch = db.batch();
-                        seedData.forEach(doc => {
-                            const docRef = itineraryRef.doc();
-                            batch.set(docRef, doc);
-                        });
-                        await batch.commit();
-                        window.location.reload();
-                    }
-                };
-
-                // --- Data Listeners ---
-                onMounted(() => {
-                    checkAndSeedData();
-
-                    if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== "") {
-                        const script = document.createElement('script');
-                        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initMap`;
-                        script.async = true;
-                        script.defer = true;
-                        document.head.appendChild(script);
-                        window.initMap = initMap;
-                    }
-
-                    itineraryRef.orderBy('date').orderBy('time').onSnapshot(snapshot => {
-                        itineraryItems.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        loading.value = false;
-                        
-                        // 設定預設日期為第一個有效日期
-                        if (uniqueDates.value.length > 0 && !selectedDate.value) {
-                             selectedDate.value = uniqueDates.value[0].date;
-                        }
-                        
-                        updateWeather();
-                    });
-
-                    expensesRef.orderBy('date', 'desc').onSnapshot(snapshot => {
-                        expenses.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    });
-                });
-                
-                watch(selectedDate, () => {
-                     updateWeather(); 
-                     if (mainContainer.value) mainContainer.value.scrollTop = 0;
-                });
-
-                watch(uniqueLocations, () => {
-                    if (map && mapLoaded.value) updateMapMarkers();
-                }, { deep: true });
-
-                const selectDate = (date) => { selectedDate.value = date; };
 
                 // --- Google Maps Logic ---
                 const initMap = () => {
@@ -601,8 +638,9 @@
                 };
 
                 const renderMap = () => {
-                    if (!mapLoaded.value) return; 
-                    if (!map && document.getElementById('google-map')) {
+                    if (!mapLoaded.value || !document.getElementById('google-map')) return; 
+                    
+                    if (!map) {
                         map = new google.maps.Map(document.getElementById('google-map'), {
                             center: { lat: 59.3293, lng: 18.0686 },
                             zoom: 5,
@@ -610,7 +648,7 @@
                             zoomControl: true,
                         });
                         updateMapMarkers();
-                    } else if (map) {
+                    } else {
                         updateMapMarkers();
                     }
                 };
@@ -624,27 +662,31 @@
                     const locs = uniqueLocations.value;
                     let bounds = new google.maps.LatLngBounds();
                     
-                    if (locs.length === 0) return;
+                    if (locs.length === 0) {
+                        map.setCenter({ lat: 59.3293, lng: 18.0686 });
+                        map.setZoom(5);
+                        return;
+                    }
 
                     locs.forEach((address, index) => {
-                        setTimeout(() => { 
-                            geocoder.geocode({ address: address }, (results, status) => {
-                                if (status === 'OK' && results[0]) {
-                                    const position = results[0].geometry.location;
-                                    const marker = new google.maps.Marker({
-                                        map: map,
-                                        position: position,
-                                        title: address,
-                                        label: { text: (index + 1).toString(), color: "white", fontSize: "12px", fontWeight: "bold" },
-                                        animation: google.maps.Animation.DROP
-                                    });
-                                    markers.push(marker);
-                                    bounds.extend(position);
-                                    if (locs.length > 1) map.fitBounds(bounds);
-                                    else { map.setCenter(position); map.setZoom(15); }
+                        geocoder.geocode({ address: address }, (results, status) => {
+                            if (status === 'OK' && results[0]) {
+                                const position = results[0].geometry.location;
+                                const marker = new google.maps.Marker({
+                                    map: map,
+                                    position: position,
+                                    title: address,
+                                    label: { text: (index + 1).toString(), color: "white", fontSize: "12px", fontWeight: "bold" },
+                                    animation: google.maps.Animation.DROP
+                                });
+                                markers.push(marker);
+                                bounds.extend(position);
+                                
+                                if (markers.length === locs.length) {
+                                     map.fitBounds(bounds);
                                 }
-                            });
-                        }, index * 200);
+                            }
+                        });
                     });
                 };
                 
@@ -653,8 +695,10 @@
                     geocoder.geocode({ address: address }, (results, status) => {
                         if (status === 'OK') {
                             map.setCenter(results[0].geometry.location);
-                            map.setZoom(15);
-                            isMapSheetOpen.value = false; // [新增] 點擊地點後收合 Bottom Sheet
+                            map.setZoom(15); 
+                            isMapSheetOpen.value = false; 
+                        } else {
+                             showToast('無法定位該地點: ' + status, true);
                         }
                     });
                 };
@@ -672,23 +716,29 @@
                             });
                             map.setCenter(pos);
                             map.setZoom(15);
-                            isMapSheetOpen.value = false; // [新增] 點擊後收合
-                        }, () => alert("無法獲取您的位置"));
+                            isMapSheetOpen.value = false;
+                        }, () => showToast("無法獲取您的位置，請檢查權限設定。", true));
                     } else {
-                        alert("您的瀏覽器不支援定位功能");
+                        showToast("您的瀏覽器不支援定位功能", true);
                     }
                 };
 
                 const jumpToMap = (location) => {
                     switchTab('map');
-                    setTimeout(() => { focusMap(location); }, 500);
+                    nextTick(() => { 
+                        setTimeout(() => { focusMap(location); }, 200);
+                    });
                 };
-
+                
                 const switchTab = (tab) => {
                     currentTab.value = tab;
                     if (tab === 'map') {
-                        setTimeout(renderMap, 100);
-                        isMapSheetOpen.value = true; // [修改] 切換到地圖時預設展開 Bottom Sheet
+                        if (!map) {
+                            nextTick(() => {
+                                setTimeout(renderMap, 100);
+                            });
+                        }
+                        isMapSheetOpen.value = true;
                     }
                 };
                 
@@ -704,7 +754,6 @@
                     Object.assign(expenseForm, { title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
                 };
                 
-                // [新增] 顯示 Toast 訊息的函式
                 const showToast = (message, isError = false) => {
                     toast.message = message;
                     toast.isError = isError;
@@ -712,41 +761,70 @@
                     setTimeout(() => { toast.isVisible = false; }, 3000);
                 };
 
-                // [修改] saveItinerary: 加入 Toast 處理
+                // --- CRUD Logic ---
                 const saveItinerary = async () => {
                     const item = { ...itineraryForm };
-                    if (!item.title) return alert("請填寫標題");
+                    if (!item.title || !item.date || !item.time) return showToast("請填寫完整的日期、時間和標題", true);
                     try {
                         if (isEditing.value) {
-                            await itineraryRef.doc(editingId.value).update(item);
+                            await itineraryRef.child(editingId.value).update(item);
                             showToast('行程更新成功！', false);
                         }
                         else {
-                            await itineraryRef.add(item);
+                            // RTDB 的 add 相當於 push().set()
+                            await itineraryRef.push().set(item); 
                             showToast('行程新增成功！', false);
                         }
                         closeModal(); 
                     } catch (e) { 
                         console.error("儲存行程失敗: ", e);
-                        showToast(`儲存行程失敗: ${e.message.substring(0, 30)}...`, true); 
+                        showToast(`儲存失敗 (請檢查 RTDB 規則): ${e.message.substring(0, 30)}...`, true); 
                     }
                 };
 
-                // [修改] saveExpense: 加入 Toast 處理
                 const saveExpense = async () => {
                     const amount = Number(parseFloat(expenseForm.amount).toFixed(2));
-                    if (isNaN(amount) || amount <= 0) return alert('請輸入有效的金額');
+                    if (isNaN(amount) || amount <= 0) return showToast('請輸入有效的金額', true);
+                    if (expenseForm.beneficiaries.length === 0) return showToast('請至少選擇一位受益人', true);
+                    
                     const item = { ...expenseForm, amount: amount };
-                    if (!item.title) return alert("請填寫項目");
+                    if (!item.title) return showToast("請填寫項目", true);
+                    
                     try {
-                        await expensesRef.add(item);
+                        await expensesRef.push().set(item);
                         showToast('支出新增成功！', false);
                         closeModal(); 
                     } catch (e) { 
                         console.error("儲存支出失敗: ", e);
-                        showToast(`儲存支出失敗: ${e.message.substring(0, 30)}...`, true);
+                        showToast(`儲存失敗 (請檢查 RTDB 規則): ${e.message.substring(0, 30)}...`, true);
                     }
                 };
+
+                const confirmDelete = (id, col, title) => {
+                    deleteTarget.id = id;
+                    deleteTarget.col = col;
+                    deleteTarget.title = title;
+                    showDeleteModal.value = true;
+                };
+
+                const executeDelete = async () => {
+                    if (!deleteTarget.id || !deleteTarget.col) return;
+                    showDeleteModal.value = false; 
+
+                    try {
+                        await db.ref(deleteTarget.col).child(deleteTarget.id).remove();
+                        showToast('項目刪除成功！', false);
+                    } catch (e) {
+                         showToast('刪除失敗！', true);
+                         console.error("刪除失敗: ", e);
+                    }
+                    // 清除目標
+                    deleteTarget.id = null;
+                    deleteTarget.col = null;
+                    deleteTarget.title = '';
+                };
+
+                const editItem = (item) => { isEditing.value = true; editingId.value = item.id; Object.assign(itineraryForm, { ...item }); currentTab.value = 'itinerary'; showAddModal.value = true; };
 
                 // --- Helpers ---
                 const formatMoneyEuro = (v) => new Intl.NumberFormat('en-US', {style:'currency', currency:'EUR', minimumFractionDigits:2, maximumFractionDigits:2}).format(v);
@@ -764,7 +842,7 @@
                 
                 const getWeatherIcon = (condition) => {
                     if (condition.includes('sun')) return 'fas fa-sun text-yellow-400';
-                    if (condition.includes('snow')) return 'fas fa-snowflake text-blue-200';
+                    if (condition.includes('snow') || condition.includes('mist')) return 'fas fa-snowflake text-blue-200';
                     if (condition.includes('rain')) return 'fas fa-cloud-rain text-blue-500';
                     return 'fas fa-cloud text-gray-400';
                 };
@@ -772,24 +850,12 @@
                 const toggleAllBeneficiaries = () => expenseForm.beneficiaries = expenseForm.beneficiaries.length === users.length ? [] : [...users];
                 const toggleBeneficiary = (u) => { const i = expenseForm.beneficiaries.indexOf(u); i>-1 ? expenseForm.beneficiaries.splice(i,1) : expenseForm.beneficiaries.push(u); };
                 
-                const deleteItem = async (id, col) => { 
-                    if (confirm('確定刪除？')) {
-                        try {
-                            await db.collection(col).doc(id).delete();
-                            showToast('項目刪除成功！', false);
-                        } catch (e) {
-                             showToast('刪除失敗！', true);
-                        }
-                    }
-                };
-                
-                const editItem = (item) => { isEditing.value = true; editingId.value = item.id; Object.assign(itineraryForm, { ...item }); currentTab.value = 'itinerary'; showAddModal.value = true; };
-
                 return {
                     loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement, currentWeather, mapLoaded, isMapSheetOpen, toast,
+                    showDeleteModal, deleteTarget, confirmDelete, executeDelete, // Delete Modal Logic
                     uniqueDates, selectedDate, filteredItinerary, totalExpense, sortedExpenses, uniqueLocations, settlements,
                     itineraryForm, expenseForm, mainContainer,
-                    selectDate, formatMoneyEuro, formatMoneyEuroWithTWD, getUserPaid, toggleAllBeneficiaries, toggleBeneficiary, closeModal, editItem, saveItinerary, deleteItem, saveExpense, getWeatherIcon,
+                    selectDate, formatMoneyEuro, formatMoneyEuroWithTWD, getUserPaid, toggleAllBeneficiaries, toggleBeneficiary, closeModal, editItem, saveItinerary, saveExpense, getWeatherIcon,
                     formatEuroAmount, switchTab, focusMap, focusCurrentLocation, openAddModal, openWeatherSite, jumpToMap
                 };
             }
