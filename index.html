@@ -3,19 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>北歐極光之旅 (v3 UI優化版)</title>
+    <title>北歐極光之旅 (RTDB 修正版)</title>
     
+    <!-- 1. Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 2. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 3. Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase SDK -->
+    <!-- 4. Firebase SDK (重要：必須包含 database-compat 用於 Realtime Database) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
     <script>
         // ==========================================
-        // 🚨 CONFIG AREA - 請在這裡填入您的金鑰 🚨
+        // 🚨 CONFIG AREA - 請填入您的金鑰 🚨
         // ==========================================
         
         const firebaseConfig = {
@@ -29,6 +33,7 @@
             databaseURL: "https://nordictravel-6feb6-default-rtdb.asia-southeast1.firebasedatabase.app/" 
         };
 
+        // 2. 填入 Google Maps API Key
         const GOOGLE_MAPS_API_KEY = "AIzaSyBT3is8sUrQfnLzrrde8ADK4cPx3_tImSo";
         // ==========================================
 
@@ -36,7 +41,7 @@
             theme: {
                 extend: { 
                     colors: { primary: '#3B82F6', secondary: '#10B981', dark: '#1F2937', light: '#F3F4F6' },
-                    boxShadow: { 'up': '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)' }
+                    boxShadow: { 'up': '0 -4px 10px -1px rgba(0, 0, 0, 0.1)' }
                 }
             }
         }
@@ -48,23 +53,14 @@
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #F3F4F6; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
-        .weather-icon { animation: float 3s ease-in-out infinite; }
-        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
-        .slide-up { animation: slideUp 0.3s ease-out forwards; }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
-        .tab-active { background-color: #3B82F6; color: white; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5); transform: scale(1.05); }
-        .tab-inactive { background-color: #F3F4F6; color: #6B7280; }
+        /* Bottom Sheet 動畫 */
+        .sheet-enter-active, .sheet-leave-active { transition: transform 0.3s ease-in-out; }
+        .sheet-enter-from, .sheet-leave-to { transform: translateY(100%); }
         
         /* Map Container */
         #google-map { width: 100%; height: 100%; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-
-        /* Bottom Sheet Transition */
-        .sheet-transition { transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.5, 1); }
     </style>
 </head>
 <body>
@@ -77,7 +73,7 @@
                 <h1 class="text-xl font-bold text-gray-900 tracking-tight flex items-center">
                     {{ pageTitle }}
                     <span class="ml-2 text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded flex items-center shadow-sm">
-                        <i class="fas fa-cloud mr-1"></i>已同步
+                        <i class="fas fa-check-circle mr-1"></i>RTDB
                     </span>
                 </h1>
                 <p class="text-xs text-gray-500 mt-0.5" v-if="currentTab === 'itinerary'">{{ daysLeftText }}</p>
@@ -89,9 +85,10 @@
             </button>
         </header>
 
-        <!-- Main Content -->
+        <!-- Main Content (Scrollable) -->
         <main class="flex-1 overflow-y-auto no-scrollbar relative bg-gray-50" ref="mainContainer">
             
+            <!-- Loading Spinner -->
             <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white z-50">
                 <div class="flex flex-col items-center">
                     <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-3"></div>
@@ -100,34 +97,41 @@
             </div>
 
             <!-- Tab: Itinerary -->
-            <div v-if="currentTab === 'itinerary'" class="pb-24">
-                <!-- Date Scroll (Sticky) -->
+            <div v-show="currentTab === 'itinerary'" class="pb-24">
+                
+                <!-- Date Selector (Sticky) -->
                 <div class="sticky top-0 bg-white/95 backdrop-blur z-20 shadow-sm border-b border-gray-100">
-                    <div class="flex overflow-x-auto no-scrollbar py-3 px-2 space-x-2" ref="dateScroll">
+                    <div class="flex overflow-x-auto no-scrollbar py-3 px-2 space-x-2">
                         <button v-for="date in uniqueDates" :key="date.date"
                             @click="selectDate(date.date)"
                             :class="['flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap', 
-                                     selectedDate === date.date ? 'tab-active' : 'tab-inactive hover:bg-gray-200']">
+                                     selectedDate === date.date ? 'bg-primary text-white shadow-md transform scale-105' : 'bg-gray-100 text-gray-500']">
                             {{ date.display }}
                         </button>
                     </div>
                 </div>
 
-                <!-- Itinerary Container -->
+                <!-- Itinerary Content -->
                 <div class="px-4 py-4 space-y-4">
                     
-                    <!-- [需求1] Weather Widget (作為第一個 item, 可滑動) -->
-                    <div @click="openWeatherSite" class="bg-gradient-to-r from-blue-500 to-blue-400 p-4 rounded-2xl text-white shadow-lg cursor-pointer transform transition active:scale-[0.98]">
-                        <div class="flex items-center justify-between">
+                    <!-- [Requirement 1] Weather Fragment (Scrollable inside view) -->
+                    <!-- 這是列表的第一個項目，可以隨頁面滑動 -->
+                    <div @click="openWeatherSite" class="bg-gradient-to-r from-blue-600 to-blue-400 p-5 rounded-2xl text-white shadow-lg cursor-pointer transform transition active:scale-[0.98] relative overflow-hidden">
+                        <div class="absolute right-0 top-0 opacity-10 text-9xl -mr-4 -mt-4"><i class="fas fa-cloud"></i></div>
+                        <div class="relative z-10 flex items-center justify-between">
                             <div class="flex items-center">
-                                <i :class="['text-4xl mr-4 weather-icon', getWeatherIcon(currentWeather.condition)]"></i>
+                                <i :class="['text-4xl mr-4', getWeatherIcon(currentWeather.condition)]"></i>
                                 <div>
-                                    <div class="text-xs font-medium opacity-90 mb-1"><i class="fas fa-map-marker-alt mr-1"></i>{{ currentWeather.city }}</div>
-                                    <div class="text-2xl font-bold">{{ currentWeather.temp }}</div>
-                                    <div class="text-sm opacity-80">{{ currentWeather.condition }}</div>
+                                    <div class="text-xs font-medium opacity-90 mb-1 flex items-center">
+                                        <i class="fas fa-map-marker-alt mr-1"></i> {{ currentWeather.city }}
+                                    </div>
+                                    <div class="text-3xl font-bold">{{ currentWeather.temp }}</div>
+                                    <div class="text-sm opacity-90">{{ currentWeather.condition }}</div>
                                 </div>
                             </div>
-                            <i class="fas fa-chevron-right opacity-50"></i>
+                            <div class="text-right">
+                                <span class="text-xs bg-white/20 px-2 py-1 rounded-lg backdrop-blur-sm">查看詳情 <i class="fas fa-arrow-right ml-1"></i></span>
+                            </div>
                         </div>
                     </div>
 
@@ -138,7 +142,7 @@
                     </div>
 
                     <!-- Timeline Items -->
-                    <div v-for="item in filteredItinerary" :key="item.id" class="relative pl-6 border-l-2 border-blue-100 last:border-0">
+                    <div v-for="item in filteredItinerary" :key="item.id" class="relative pl-6 border-l-2 border-blue-100 last:border-0 pb-2">
                         <div class="absolute -left-[9px] top-3 w-4 h-4 rounded-full bg-white border-4 border-primary shadow-sm"></div>
                         <div class="bg-white p-4 rounded-2xl card-shadow active:scale-[0.99] transition-transform duration-200">
                             <div class="flex justify-between items-start mb-1">
@@ -150,26 +154,24 @@
                             </div>
                             <h3 class="font-bold text-gray-800 text-lg mb-1">{{ item.title }}</h3>
                             
-                            <div v-if="item.location" class="flex items-center text-gray-500 text-sm mb-2 mt-2 cursor-pointer hover:text-blue-600 transition" @click="jumpToMap(item.location)">
-                                <i class="fas fa-map-marker-alt text-red-400 mr-2"></i>
+                            <div v-if="item.location" class="flex items-center text-gray-500 text-sm mb-2 mt-2 cursor-pointer hover:text-blue-600 transition group" @click="jumpToMap(item.location)">
+                                <i class="fas fa-map-marker-alt text-red-400 mr-2 group-hover:scale-110 transition-transform"></i>
                                 <span class="underline decoration-dotted decoration-gray-400">{{ item.location }}</span>
-                                <i class="fas fa-chevron-right text-xs ml-1 opacity-50"></i>
                             </div>
                             
-                            <p v-if="item.notes" class="text-gray-600 text-sm mt-2 bg-gray-50 p-2 rounded-lg leading-relaxed whitespace-pre-wrap">{{ item.notes }}</p>
+                            <p v-if="item.notes" class="text-gray-600 text-sm mt-2 bg-gray-50 p-2 rounded-lg leading-relaxed">{{ item.notes }}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Tab: Expenses -->
-            <div v-if="currentTab === 'expenses'" class="pb-24">
+            <div v-show="currentTab === 'expenses'" class="pb-24">
                 <div class="p-5 space-y-3">
-                    <!-- User Totals -->
-                    <div class="space-y-3">
-                        <div v-for="user in users" :key="user" class="bg-white p-3 rounded-xl card-shadow text-left flex justify-between items-center">
-                            <div class="text-sm font-medium text-gray-500">{{ user }} 付款總額:</div>
-                            <div class="text-xl font-bold text-primary">{{ formatMoneyEuro(getUserPaid(user)) }}</div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div v-for="user in users" :key="user" class="bg-white p-3 rounded-xl card-shadow">
+                            <div class="text-xs text-gray-500 mb-1">{{ user }}</div>
+                            <div class="text-lg font-bold text-primary">{{ formatMoneyEuro(getUserPaid(user)) }}</div>
                         </div>
                     </div>
 
@@ -177,17 +179,13 @@
                     <div v-if="settlements.length" class="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="font-bold text-green-800 flex items-center"><i class="fas fa-calculator mr-2"></i> 分帳結算</h3>
-                            <button @click="showSettlement = !showSettlement" class="text-green-600 text-sm hover:text-green-700">
-                                <i :class="showSettlement ? 'fas fa-chevron-up' : 'fas fa-chevron-down']"></i>
+                            <button @click="showSettlement = !showSettlement" class="text-green-600 text-sm">
+                                <i :class="showSettlement ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
                             </button>
                         </div>
                         <div v-if="showSettlement" class="space-y-2">
-                            <div v-for="s in settlements" :key="s.from+s.to" class="flex items-center justify-between bg-white p-3 rounded-lg">
-                                <div class="flex items-center">
-                                    <span class="font-bold text-gray-700">{{ s.from }}</span>
-                                    <i class="fas fa-arrow-right mx-3 text-green-500"></i>
-                                    <span class="font-bold text-gray-700">{{ s.to }}</span>
-                                </div>
+                            <div v-for="s in settlements" :key="s.from+s.to" class="flex items-center justify-between bg-white p-3 rounded-lg text-sm">
+                                <div><span class="font-bold">{{ s.from }}</span> <i class="fas fa-arrow-right mx-1 text-gray-400"></i> <span class="font-bold">{{ s.to }}</span></div>
                                 <span class="font-bold text-green-600">{{ formatMoneyEuro(s.amount) }}</span>
                             </div>
                         </div>
@@ -197,99 +195,64 @@
                     <div class="space-y-2">
                         <div v-for="exp in sortedExpenses" :key="exp.id" class="bg-white p-4 rounded-xl card-shadow">
                             <div class="flex justify-between items-start mb-2">
-                                <div class="flex-1">
+                                <div>
                                     <h4 class="font-bold text-gray-800">{{ exp.title }}</h4>
-                                    <div class="text-xs text-gray-500 mt-1 flex items-center">
-                                        <i class="far fa-calendar mr-1"></i> {{ exp.date }}
-                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1">{{ exp.date }} • 付款: {{ exp.payer }}</div>
                                 </div>
-                                <button @click="deleteItem(exp.id, 'expenses')" class="text-gray-400 hover:text-red-500 ml-2">
-                                    <i class="fas fa-trash text-xs"></i>
-                                </button>
+                                <button @click="deleteItem(exp.id, 'expenses')" class="text-gray-400 hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>
                             </div>
-                            <div class="flex items-center justify-between pt-2 border-t border-gray-100">
-                                <div class="text-sm">
-                                    <span class="text-gray-500">付款:</span>
-                                    <span class="font-bold text-primary ml-1">{{ exp.payer }}</span>
-                                </div>
-                                <div class="text-right">
-                                    <div class="text-lg font-bold text-gray-800">{{ formatMoneyEuroWithTWD(exp.amount) }}</div>
-                                    <div class="text-[10px] text-gray-400" v-if="exp.beneficiaries && exp.beneficiaries.length">
-                                        分給 {{ exp.beneficiaries.join(', ') }}
-                                    </div>
-                                </div>
+                            <div class="text-right">
+                                <div class="text-lg font-bold text-gray-800">{{ formatMoneyEuroWithTWD(exp.amount) }}</div>
+                                <div class="text-[10px] text-gray-400">分給: {{ exp.beneficiaries.join(', ') }}</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Tab: Map (Full Height) -->
-            <div v-if="currentTab === 'map'" class="relative w-full h-full flex flex-col">
-                <!-- Map Container -->
-                <div class="flex-1 w-full h-full relative">
-                    <div id="google-map" class="w-full h-full"></div>
-                    <div v-if="!mapLoaded" class="absolute inset-0 flex items-center justify-center bg-gray-100/90 z-10">
-                        <div class="text-center">
-                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                            <p class="text-gray-500 text-sm">地圖載入中...</p>
-                        </div>
-                    </div>
+            <!-- Tab: Map (使用 v-show 保持 DOM 存在) -->
+            <div v-show="currentTab === 'map'" class="w-full h-full relative">
+                <div id="google-map" class="w-full h-full bg-gray-200"></div>
+                
+                <!-- Map Controls -->
+                <div class="absolute top-4 right-4 flex flex-col gap-2 z-10">
+                    <button @click="focusCurrentLocation" class="bg-white p-3 rounded-full shadow-lg text-blue-600 active:bg-gray-100">
+                        <i class="fas fa-crosshairs"></i>
+                    </button>
                 </div>
 
-                <!-- [需求2] Bottom Sheet Location List -->
+                <!-- [Requirement 2] Bottom Sheet Location List -->
+                <!-- 預設顯示標題欄，點擊後展開 -->
                 <div 
-                    class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-up z-20 sheet-transition flex flex-col pb-safe"
-                    :style="{ height: '60vh', transform: isBottomSheetOpen ? 'translateY(0)' : 'translateY(calc(100% - 70px))' }"
+                    class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-up z-20 flex flex-col transition-all duration-300 ease-out"
+                    :style="{ height: isBottomSheetOpen ? '60%' : '60px', paddingBottom: '20px' }"
                 >
-                    <!-- Drag Handle / Header -->
-                    <div @click="toggleBottomSheet" class="p-3 cursor-pointer bg-white rounded-t-3xl flex-shrink-0 border-b border-gray-100" >
-                        <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-3"></div>
-                        <div class="flex justify-between items-center px-4 pb-2">
-                            <h3 class="font-bold text-lg text-gray-800">所有行程地點 ({{ uniqueLocations.length }})</h3>
-                            <button class="text-gray-400 text-sm">
-                                <i :class="['fas', isBottomSheetOpen ? 'fa-chevron-down' : 'fa-chevron-up']"></i>
-                            </button>
-                        </div>
+                    <!-- Handle / Header -->
+                    <div @click="isBottomSheetOpen = !isBottomSheetOpen" class="w-full h-[60px] flex items-center justify-between px-6 cursor-pointer border-b border-gray-100 flex-shrink-0">
+                        <h3 class="font-bold text-gray-800">所有地點 ({{ uniqueLocations.length }})</h3>
+                        <i :class="['fas text-gray-400 transition-transform', isBottomSheetOpen ? 'fa-chevron-down' : 'fa-chevron-up']"></i>
                     </div>
 
-                    <!-- Location List -->
-                    <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
+                    <!-- List Content -->
+                    <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50" v-show="isBottomSheetOpen">
+                        <p v-if="uniqueLocations.length === 0" class="text-center text-gray-400 text-sm py-4">無地點資料</p>
                         
-                        <!-- Current Location -->
-                        <button @click="focusCurrentLocation" 
-                            class="w-full bg-white p-4 rounded-xl border border-blue-100 flex items-center justify-between shadow-sm active:bg-blue-50 transition">
-                            <div class="flex items-center text-blue-600">
-                                <i class="fas fa-location-arrow text-xl w-8 text-center"></i>
-                                <span class="font-bold ml-2">我的位置</span>
-                            </div>
-                            <i class="fas fa-crosshairs text-blue-400"></i>
-                        </button>
-
-                        <div v-if="uniqueLocations.length === 0" class="text-center py-8 text-gray-400 text-sm">
-                             尚無地點資料
-                        </div>
-
-                        <!-- [需求3] Locations Items with Selected State -->
-                        <button v-for="(loc, index) in uniqueLocations" :key="loc"
+                        <!-- [Requirement 3] List Items with Selected State -->
+                        <div v-for="(loc, index) in uniqueLocations" :key="loc"
                             @click="selectLocation(loc)"
-                            class="w-full p-4 rounded-xl flex items-center justify-between transition-all duration-200 border"
-                            :class="selectedLocation === loc 
-                                ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100 shadow-md transform scale-[1.01]' 
-                                : 'bg-white border-transparent shadow-sm hover:bg-gray-50'">
+                            class="p-3 rounded-xl flex items-center justify-between cursor-pointer transition-all border"
+                            :class="selectedLocation === loc ? 'bg-blue-50 border-blue-500' : 'bg-white border-transparent hover:bg-gray-100'">
                             
                             <div class="flex items-center overflow-hidden">
-                                <div class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-3"
-                                     :class="selectedLocation === loc ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'">
+                                <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-bold mr-3 flex-shrink-0"
+                                      :class="{'bg-blue-500 text-white': selectedLocation === loc}">
                                     {{ index + 1 }}
-                                </div>
-                                <span class="font-medium truncate flex-1 text-left"
-                                      :class="selectedLocation === loc ? 'text-blue-800' : 'text-gray-700'">
-                                    {{ loc }}
                                 </span>
+                                <span class="truncate font-medium text-sm" :class="selectedLocation === loc ? 'text-blue-700' : 'text-gray-700'">{{ loc }}</span>
                             </div>
-                            <i v-if="selectedLocation === loc" class="fas fa-check-circle text-blue-500 ml-2"></i>
-                        </button>
+                            
+                            <i v-if="selectedLocation === loc" class="fas fa-check text-blue-500"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -298,70 +261,51 @@
 
         <!-- Bottom Navigation -->
         <nav class="bg-white border-t border-gray-100 py-2 px-4 flex justify-around items-center shrink-0 pb-safe z-30">
-            <button @click="switchTab('itinerary')" :class="['flex flex-col items-center py-2 px-4 transition-colors', currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400']">
+            <button @click="switchTab('itinerary')" :class="['flex flex-col items-center py-2 px-4 transition', currentTab === 'itinerary' ? 'text-primary scale-105' : 'text-gray-400']">
                 <i class="fas fa-calendar-alt text-xl mb-1"></i>
                 <span class="text-xs font-medium">行程</span>
             </button>
-            <button @click="switchTab('expenses')" :class="['flex flex-col items-center py-2 px-4 transition-colors', currentTab === 'expenses' ? 'text-primary' : 'text-gray-400']">
+            <button @click="switchTab('expenses')" :class="['flex flex-col items-center py-2 px-4 transition', currentTab === 'expenses' ? 'text-primary scale-105' : 'text-gray-400']">
                 <i class="fas fa-wallet text-xl mb-1"></i>
                 <span class="text-xs font-medium">分帳</span>
             </button>
-            <button @click="switchTab('map')" :class="['flex flex-col items-center py-2 px-4 transition-colors', currentTab === 'map' ? 'text-primary' : 'text-gray-400']">
+            <button @click="switchTab('map')" :class="['flex flex-col items-center py-2 px-4 transition', currentTab === 'map' ? 'text-primary scale-105' : 'text-gray-400']">
                 <i class="fas fa-map text-xl mb-1"></i>
                 <span class="text-xs font-medium">地圖</span>
             </button>
         </nav>
 
         <!-- Add Modal -->
-        <div v-if="showAddModal" @click.self="closeModal" class="fixed inset-0 bg-black/50 flex items-end z-50 animate-fadeIn">
-            <div class="bg-white w-full rounded-t-3xl p-6 pb-safe max-h-[85vh] overflow-y-auto slide-up">
-                <div class="flex justify-between items-center mb-5">
-                    <h2 class="text-xl font-bold text-gray-800">{{ currentTab === 'itinerary' ? (isEditing ? '編輯行程' : '新增行程') : '新增支出' }}</h2>
-                    <button @click="closeModal" class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times text-xl"></i>
-                    </button>
+        <div v-if="showAddModal" class="fixed inset-0 bg-black/50 flex items-end z-50 animate-fadeIn" @click.self="closeModal">
+            <div class="bg-white w-full rounded-t-3xl p-6 pb-safe slide-up">
+                <h2 class="text-xl font-bold mb-4">{{ currentTab === 'itinerary' ? (isEditing ? '編輯行程' : '新增行程') : '新增支出' }}</h2>
+                
+                <div v-if="currentTab === 'itinerary'" class="space-y-3">
+                    <input v-model="itineraryForm.date" type="date" class="w-full p-3 border rounded-xl bg-gray-50">
+                    <div class="flex gap-2">
+                        <input v-model="itineraryForm.time" type="time" class="w-1/3 p-3 border rounded-xl bg-gray-50">
+                        <input v-model="itineraryForm.title" type="text" placeholder="標題" class="w-2/3 p-3 border rounded-xl bg-gray-50">
+                    </div>
+                    <input v-model="itineraryForm.location" type="text" placeholder="地點 (用於地圖)" class="w-full p-3 border rounded-xl bg-gray-50">
+                    <textarea v-model="itineraryForm.notes" rows="2" placeholder="備註" class="w-full p-3 border rounded-xl bg-gray-50"></textarea>
+                    <button @click="saveItinerary" class="w-full bg-primary text-white py-3 rounded-xl font-bold mt-2">儲存</button>
                 </div>
 
-                <div v-if="currentTab === 'itinerary'" class="space-y-4">
-                    <div><label class="block text-sm font-medium text-gray-700 mb-2">日期</label><input v-model="itineraryForm.date" type="date" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-2">時間</label><input v-model="itineraryForm.time" type="time" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-2">標題</label><input v-model="itineraryForm.title" type="text" placeholder="例: 斯德哥爾摩舊城區" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-2">地點</label><input v-model="itineraryForm.location" type="text" placeholder="Gamla Stan, Stockholm" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-2">備註</label><textarea v-model="itineraryForm.notes" rows="3" placeholder="可選" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea></div>
-                    <button @click="saveItinerary" class="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition active:scale-95">
-                        {{ isEditing ? '更新' : '新增' }}
-                    </button>
-                </div>
-
-                <div v-if="currentTab === 'expenses'" class="space-y-4">
-                    <div><label class="block text-sm font-medium text-gray-700 mb-2">項目</label><input v-model="expenseForm.title" type="text" placeholder="例: 晚餐" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"></div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">金額 (€ 歐元)</label>
-                        <input v-model.number="expenseForm.amount" @input="formatEuroAmount" type="number" step="0.01" placeholder="0.00" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
-                        <p class="text-xs text-gray-500 mt-1">約等於 {{ formatMoneyEuroWithTWD(expenseForm.amount || 0) }}</p>
+                <div v-else class="space-y-3">
+                    <input v-model="expenseForm.title" type="text" placeholder="項目" class="w-full p-3 border rounded-xl bg-gray-50">
+                    <div class="flex gap-2">
+                        <input v-model.number="expenseForm.amount" type="number" placeholder="金額 (€)" class="w-1/2 p-3 border rounded-xl bg-gray-50">
+                        <input v-model="expenseForm.date" type="date" class="w-1/2 p-3 border rounded-xl bg-gray-50">
                     </div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-2">日期</label><input v-model="expenseForm.date" type="date" class="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"></div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">付款人</label>
-                        <div class="flex gap-2">
-                            <button v-for="user in users" :key="user" @click="expenseForm.payer = user" :class="['flex-1 py-2 rounded-xl font-medium transition', expenseForm.payer === user ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600']">{{ user }}</button>
-                        </div>
+                    <div class="flex gap-2 overflow-x-auto pb-2">
+                        <button v-for="u in users" :key="u" @click="expenseForm.payer = u" 
+                            :class="['px-3 py-1 rounded-full text-sm border whitespace-nowrap', expenseForm.payer === u ? 'bg-primary text-white' : 'bg-white']">{{ u }}</button>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">受益人</label>
-                        <div class="flex flex-wrap gap-2 mb-2">
-                            <button v-for="user in users" :key="user" @click="toggleBeneficiary(user)" :class="['px-4 py-2 rounded-xl font-medium transition', expenseForm.beneficiaries.includes(user) ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600']">{{ user }}</button>
-                        </div>
-                        <button @click="toggleAllBeneficiaries" class="text-sm text-primary hover:underline">
-                            {{ expenseForm.beneficiaries.length === users.length ? '取消全選' : '全選' }}
-                        </button>
-                    </div>
-                    <button @click="saveExpense" class="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition active:scale-95">
-                        新增支出
-                    </button>
+                    <button @click="saveExpense" class="w-full bg-primary text-white py-3 rounded-xl font-bold mt-2">儲存</button>
                 </div>
             </div>
         </div>
+
     </div>
 
     <script>
@@ -369,13 +313,17 @@
 
         const App = {
             setup() {
-                // --- Initialization ---
-                if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+                // Config Setup
+                const config = (typeof __firebase_config !== 'undefined') ? JSON.parse(__firebase_config) : firebaseConfig;
+                if (!firebase.apps.length) firebase.initializeApp(config);
+                
+                // Realtime Database Reference
                 const db = firebase.database();
                 const itineraryRef = db.ref('itinerary');
                 const expensesRef = db.ref('expenses');
-                
-                // --- State ---
+                const auth = firebase.auth();
+
+                // State
                 const loading = ref(true);
                 const currentTab = ref('itinerary');
                 const showAddModal = ref(false);
@@ -384,363 +332,229 @@
                 const showSettlement = ref(false);
                 const selectedDate = ref('');
                 
-                // Bottom Sheet & Map State
+                // Map & Bottom Sheet State
                 const isBottomSheetOpen = ref(false);
                 const selectedLocation = ref(null);
                 const mapLoaded = ref(false);
-                
+
                 const users = ['Han', 'Sylvia', 'Messi', 'Cheryl'];
                 const EURO_TO_TWD = 34.5;
-                const mainContainer = ref(null);
-
+                
                 const itineraryItems = ref([]);
                 const expenses = ref([]);
-
                 const itineraryForm = reactive({ date: '', time: '09:00', title: '', location: '', notes: '' });
-                const expenseForm = reactive({ title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
-
+                const expenseForm = reactive({ title: '', amount: '', date: '', payer: users[0], beneficiaries: [...users] });
                 const currentWeather = reactive({ temp: 'N/A', condition: 'cloudy', city: 'Nordic' });
-                
+
                 let map = null;
                 let markers = [];
                 let geocoder = null;
-                let userLocationMarker = null;
 
-                // --- Computed Properties ---
+                // --- Computed ---
                 const pageTitle = computed(() => {
-                    if (currentTab.value === 'itinerary') return '北歐行程';
+                    if (currentTab.value === 'itinerary') return '行程規劃';
                     if (currentTab.value === 'expenses') return '分帳助手';
-                    return '地點導航';
+                    return '地圖導覽';
                 });
 
-                const getDayName = (dateStr) => new Date(dateStr).toLocaleDateString('zh-TW', { weekday: 'short' }).replace('星期', '週');
-
                 const uniqueDates = computed(() => {
-                    const allDates = new Set(itineraryItems.value.map(i => i.date));
-                    ['2025-12-20', '2025-12-21', '2025-12-23', '2025-12-31', '2026-01-03', '2026-01-05'].forEach(d => allDates.add(d));
-                    
-                    return Array.from(allDates).sort().map((date, index) => {
-                        return {
-                            date: date,
-                            display: `${new Date(date).getMonth()+1}/${new Date(date).getDate()} (${getDayName(date)})`
-                        };
+                    const dates = new Set(itineraryItems.value.map(i => i.date));
+                    // Add default dates if empty
+                    ['2025-12-20', '2025-12-21', '2025-12-23'].forEach(d => dates.add(d));
+                    return Array.from(dates).filter(d=>d).sort().map(d => {
+                        const dateObj = new Date(d);
+                        return { date: d, display: `${dateObj.getMonth()+1}/${dateObj.getDate()}` };
                     });
                 });
 
                 const filteredItinerary = computed(() => itineraryItems.value.filter(i => i.date === selectedDate.value).sort((a,b) => a.time.localeCompare(b.time)));
-                const totalExpense = computed(() => expenses.value.reduce((sum, i) => sum + (Number(i.amount)||0), 0));
-                const sortedExpenses = computed(() => [...expenses.value].sort((a,b) => new Date(b.date) - new Date(a.date)));
                 const uniqueLocations = computed(() => [...new Set(itineraryItems.value.filter(i => i.location).map(i => i.location))]);
+                const totalExpense = computed(() => expenses.value.reduce((s, i) => s + (Number(i.amount)||0), 0));
+                const sortedExpenses = computed(() => [...expenses.value].sort((a,b) => new Date(b.date) - new Date(a.date)));
+
+                const daysLeftText = computed(() => {
+                    if(!selectedDate.value) return '';
+                    return `Day ${uniqueDates.value.findIndex(d => d.date === selectedDate.value) + 1}`;
+                });
                 
                 const settlements = computed(() => {
-                    const balance = {}; 
-                    users.forEach(p => balance[p] = 0);
+                    const bal = {}; users.forEach(u => bal[u] = 0);
                     expenses.value.forEach(e => {
-                        const beneficiaries = Array.isArray(e.beneficiaries) ? e.beneficiaries : [];
-                        if (!beneficiaries.length || e.amount <= 0) return;
-                        balance[e.payer] += e.amount;
-                        const split = e.amount / beneficiaries.length;
-                        beneficiaries.forEach(b => balance[b] -= split);
+                        const share = e.amount / e.beneficiaries.length;
+                        bal[e.payer] += e.amount;
+                        e.beneficiaries.forEach(b => bal[b] -= share);
                     });
-                    let debtors = Object.keys(balance).filter(p => balance[p] < -0.01).map(p => ({n:p, a:balance[p]})).sort((a,b)=>a.a-b.a);
-                    let creditors = Object.keys(balance).filter(p => balance[p] > 0.01).map(p => ({n:p, a:balance[p]})).sort((a,b)=>b.a-a.a);
+                    const d = [], c = [];
+                    for(let u in bal) { if(bal[u] < -0.01) d.push({u, a:-bal[u]}); else if(bal[u] > 0.01) c.push({u, a:bal[u]}); }
                     const res = [];
                     let i=0, j=0;
-                    while(i<debtors.length && j<creditors.length) {
-                        const amt = Math.min(Math.abs(debtors[i].a), creditors[j].a);
-                        res.push({from:debtors[i].n, to:creditors[j].n, amount: parseFloat(amt.toFixed(2))});
-                        debtors[i].a += amt; 
-                        creditors[j].a -= amt;
-                        if(Math.abs(debtors[i].a)<0.01) i++;
-                        if(creditors[j].a<0.01) j++;
+                    while(i<d.length && j<c.length) {
+                        const amt = Math.min(d[i].a, c[j].a);
+                        res.push({from: d[i].u, to: c[j].u, amount: amt});
+                        d[i].a -= amt; c[j].a -= amt;
+                        if(d[i].a < 0.01) i++; if(c[j].a < 0.01) j++;
                     }
                     return res;
                 });
 
-                const daysLeftText = computed(() => {
-                    const allDates = Array.from(new Set(itineraryItems.value.map(i => i.date))).sort();
-                    const index = allDates.indexOf(selectedDate.value);
-                    if (index === -1) return '非行程日';
-                    return `Day ${index + 1}`;
-                });
-
                 // --- Methods ---
-                const updateWeather = () => {
-                    let city = "Nordic";
-                    let temp = "-3°C";
-                    let condition = "cloudy";
-                    if (filteredItinerary.value.length > 0) {
-                        const loc = filteredItinerary.value[0].location || "";
-                        if (loc.match(/Stockholm/i)) { city = "Stockholm"; temp = "-1°C"; condition = "snow"; }
-                        else if (loc.match(/Helsinki/i)) { city = "Helsinki"; temp = "-5°C"; condition = "snow"; }
-                        else if (loc.match(/Rovaniemi/i)) { city = "Rovaniemi"; temp = "-12°C"; condition = "snow"; }
-                        else if (loc.match(/Oslo/i)) { city = "Oslo"; temp = "-4°C"; condition = "cloudy"; }
-                        else if (loc.match(/Bergen/i)) { city = "Bergen"; temp = "1°C"; condition = "rain"; }
-                        else if (loc.match(/Copenhagen/i)) { city = "Copenhagen"; temp = "3°C"; condition = "cloudy"; }
-                    }
-                    currentWeather.city = city; currentWeather.temp = temp; currentWeather.condition = condition;
-                };
-
-                // --- Data Listeners ---
-                const snapshotToArray = (snapshot) => {
+                const snapshotToArray = (snap) => {
                     const list = [];
-                    snapshot.forEach(childSnapshot => {
-                        list.push({ id: childSnapshot.key, ...childSnapshot.val() });
-                    });
+                    snap.forEach(c => list.push({ id: c.key, ...c.val() }));
                     return list;
                 };
 
-                const checkAndSeedData = async () => {
-                    loading.value = true;
-                };
-
                 onMounted(() => {
-                    checkAndSeedData();
+                    // Auth Check
+                    if (typeof __initial_auth_token !== 'undefined') auth.signInWithCustomToken(__initial_auth_token);
+                    else auth.signInAnonymously();
 
-                    if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== "") {
-                        const script = document.createElement('script');
-                        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initMap`;
-                        script.async = true;
-                        script.defer = true;
-                        document.head.appendChild(script);
-                        window.initMap = initMap;
-                    }
-
-                    itineraryRef.on('value', (snapshot) => {
-                        itineraryItems.value = snapshotToArray(snapshot);
+                    // Load Data
+                    itineraryRef.on('value', s => {
+                        itineraryItems.value = snapshotToArray(s);
                         loading.value = false;
-                        if (uniqueDates.value.length > 0 && !selectedDate.value) selectedDate.value = uniqueDates.value[0].date;
+                        if (!selectedDate.value && uniqueDates.value.length) selectedDate.value = uniqueDates.value[0].date;
                         updateWeather();
                     });
+                    expensesRef.on('value', s => expenses.value = snapshotToArray(s));
 
-                    expensesRef.on('value', (snapshot) => {
-                        expenses.value = snapshotToArray(snapshot);
-                    });
+                    // Load Maps
+                    if (GOOGLE_MAPS_API_KEY) {
+                        const script = document.createElement('script');
+                        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initMap`;
+                        script.async = true;
+                        window.initMap = initMap;
+                        document.head.appendChild(script);
+                    }
                 });
-                
-                watch(selectedDate, () => {
-                     updateWeather(); 
-                     if (mainContainer.value) mainContainer.value.scrollTop = 0;
-                });
 
-                watch(uniqueLocations, () => {
-                    if (map && mapLoaded.value) updateMapMarkers();
-                }, { deep: true });
-
-                const selectDate = (date) => { selectedDate.value = date; };
-
-                // --- Google Maps Logic ---
                 const initMap = () => {
                     geocoder = new google.maps.Geocoder();
                     mapLoaded.value = true;
-                    // 如果一開始就在 map tab，則渲染
-                    if (currentTab.value === 'map') {
-                        renderMap();
-                    }
+                    if(currentTab.value === 'map') renderMap();
                 };
 
-                // [需求4] 重新點擊地圖 tab 時，地圖沒有顯示出來 -> 修正 renderMap 邏輯
                 const renderMap = () => {
-                    if (!mapLoaded.value) return;
-                    
-                    // 使用 setTimeout 確保 v-if DOM 已經生成
-                    setTimeout(() => {
+                    if(!mapLoaded.value) return;
+                    nextTick(() => {
                         const mapEl = document.getElementById('google-map');
-                        if (mapEl) {
-                            // 即使 map 物件存在，也要重新 new 一次，因為 DOM 元素被替換了
-                            map = new google.maps.Map(mapEl, {
-                                center: { lat: 59.3293, lng: 18.0686 },
-                                zoom: 5,
-                                disableDefaultUI: true,
-                                zoomControl: true,
-                            });
+                        if(mapEl) {
+                            if(!map) {
+                                map = new google.maps.Map(mapEl, { center: { lat: 60, lng: 10 }, zoom: 5, disableDefaultUI: true });
+                            }
                             updateMapMarkers();
+                            // Force resize trigger
+                            google.maps.event.trigger(map, 'resize');
                         }
-                    }, 50);
+                    });
                 };
 
                 const updateMapMarkers = () => {
-                    if (!map || !geocoder) return;
+                    if(!map) return;
                     markers.forEach(m => m.setMap(null));
                     markers = [];
-                    if (userLocationMarker) userLocationMarker.setMap(null);
-
-                    const locs = uniqueLocations.value;
-                    let bounds = new google.maps.LatLngBounds();
+                    const bounds = new google.maps.LatLngBounds();
+                    let hasLocs = false;
                     
-                    if (locs.length === 0) {
-                        map.setCenter({ lat: 59.3293, lng: 18.0686 });
-                        map.setZoom(5);
-                        return;
-                    }
-
-                    locs.forEach((address, index) => {
-                        geocoder.geocode({ address: address }, (results, status) => {
-                            if (status === 'OK' && results[0]) {
-                                const position = results[0].geometry.location;
+                    uniqueLocations.value.forEach((loc, idx) => {
+                        geocoder.geocode({ address: loc }, (res, status) => {
+                            if(status === 'OK') {
+                                hasLocs = true;
+                                const pos = res[0].geometry.location;
                                 const marker = new google.maps.Marker({
-                                    map: map,
-                                    position: position,
-                                    title: address,
-                                    label: { text: (index + 1).toString(), color: "white", fontSize: "12px", fontWeight: "bold" },
-                                    animation: google.maps.Animation.DROP
+                                    map, position: pos, 
+                                    label: { text: (idx+1)+"", color: "white" }
                                 });
-                                
-                                // 點擊 marker 也會觸發選中
-                                marker.addListener('click', () => {
-                                    selectLocation(address);
-                                });
-
+                                marker.addListener('click', () => selectLocation(loc));
                                 markers.push(marker);
-                                bounds.extend(position);
-                                
-                                if (markers.length === locs.length) {
-                                     // 如果有選中地點，優先聚焦該地點
-                                     if (selectedLocation.value) {
-                                         focusMap(selectedLocation.value, false);
-                                     } else {
-                                         map.fitBounds(bounds);
-                                     }
-                                }
+                                bounds.extend(pos);
+                                map.fitBounds(bounds);
                             }
                         });
                     });
                 };
-                
-                const focusMap = (address, zoom = true) => {
-                    if(!map || !geocoder) return;
-                    geocoder.geocode({ address: address }, (results, status) => {
-                        if (status === 'OK') {
-                            map.setCenter(results[0].geometry.location);
-                            if(zoom) map.setZoom(15);
+
+                const focusMap = (loc) => {
+                    if(!map) return;
+                    geocoder.geocode({ address: loc }, (res, status) => {
+                        if(status === 'OK') {
+                            map.setCenter(res[0].geometry.location);
+                            map.setZoom(15);
                         }
                     });
                 };
 
-                // [需求3] 點擊所有行程地點 list 的 item 時，希望是 selected 的狀態
-                const selectLocation = (loc) => {
-                    selectedLocation.value = loc; // 設定選中狀態
-                    focusMap(loc); // 移動地圖
-                    isBottomSheetOpen.value = false; // 收起 Bottom Sheet (可選，讓使用者看地圖)
-                };
-
-                const toggleBottomSheet = () => {
-                    isBottomSheetOpen.value = !isBottomSheetOpen.value;
-                };
-
-                const focusCurrentLocation = () => {
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition((position) => {
-                            const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
-                            if (userLocationMarker) userLocationMarker.setMap(null);
-                            userLocationMarker = new google.maps.Marker({
-                                position: pos,
-                                map: map,
-                                title: "Your Location",
-                                icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#4285F4", fillOpacity: 1, strokeColor: "white", strokeWeight: 2 },
-                            });
-                            map.setCenter(pos);
-                            map.setZoom(15);
-                            isBottomSheetOpen.value = false;
-                        }, () => alert("無法獲取您的位置"));
-                    } else {
-                        alert("您的瀏覽器不支援定位功能");
-                    }
-                };
-
-                const jumpToMap = (location) => {
-                    selectedLocation.value = location; // 預先選中
-                    switchTab('map');
-                    // switchTab 裡的 renderMap 會處理後續的地圖渲染和聚焦
-                };
-
+                // [Fix] Map reload issue
                 const switchTab = (tab) => {
                     currentTab.value = tab;
-                    if (tab === 'map') {
-                        // 每次切換到 map，強制重新渲染地圖以解決 v-if 導致的空白問題
-                        renderMap();
-                        // 預設關閉列表，露出地圖
+                    if(tab === 'map') {
                         isBottomSheetOpen.value = false;
-                        
-                        // 如果有預選地點，延遲聚焦
-                        if (selectedLocation.value) {
-                            setTimeout(() => focusMap(selectedLocation.value), 300);
-                        }
+                        // Force map render slightly after tab switch
+                        setTimeout(renderMap, 100); 
                     }
                 };
+
+                const selectLocation = (loc) => {
+                    selectedLocation.value = loc;
+                    focusMap(loc);
+                    isBottomSheetOpen.value = false; // Auto close sheet on select
+                };
+
+                const updateWeather = () => {
+                    if(!filteredItinerary.value.length) return;
+                    const loc = filteredItinerary.value[0].location || 'Nordic';
+                    // Mock logic
+                    currentWeather.city = loc.split(',')[0];
+                    currentWeather.temp = Math.floor(Math.random() * 5 - 5) + "°C";
+                    currentWeather.condition = loc.includes('Rova') ? 'snow' : 'cloudy';
+                };
+
+                // UI Helpers
+                const selectDate = (d) => { selectedDate.value = d; updateWeather(); };
+                const openAddModal = () => { 
+                    itineraryForm.date = selectedDate.value; 
+                    showAddModal.value = true; 
+                    if(currentTab.value === 'expenses') expenseForm.date = selectedDate.value;
+                };
+                const closeModal = () => { showAddModal.value = false; isEditing.value = false; editingId.value = null; };
                 
-                // --- UI Actions ---
-                const openAddModal = () => {
-                    itineraryForm.date = selectedDate.value;
+                const saveItinerary = async () => {
+                    if(!itineraryForm.title) return;
+                    if(isEditing.value) await itineraryRef.child(editingId.value).update({...itineraryForm});
+                    else await itineraryRef.push({...itineraryForm});
+                    closeModal();
+                };
+                
+                const saveExpense = async () => {
+                    if(!expenseForm.title) return;
+                    await expensesRef.push({...expenseForm});
+                    closeModal();
+                };
+
+                const deleteItem = async (id, type) => {
+                    if(confirm('刪除?')) await (type === 'itinerary' ? itineraryRef : expensesRef).child(id).remove();
+                };
+
+                const editItem = (item) => {
+                    Object.assign(itineraryForm, item);
+                    isEditing.value = true; editingId.value = item.id;
                     showAddModal.value = true;
                 };
 
-                const closeModal = () => {
-                    showAddModal.value = false; isEditing.value = false; editingId.value = null;
-                    Object.assign(itineraryForm, { date: selectedDate.value, time: '09:00', title: '', location: '', notes: '' });
-                    Object.assign(expenseForm, { title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
-                };
-
-                const saveItinerary = async () => {
-                    const item = { ...itineraryForm };
-                    if (!item.title) return alert("請填寫標題");
-                    try {
-                        if (isEditing.value) await itineraryRef.child(editingId.value).update(item);
-                        else await itineraryRef.push().set(item);
-                        closeModal(); 
-                    } catch (e) { alert("儲存失敗: " + e.message); }
-                };
-
-                const saveExpense = async () => {
-                    const amount = Number(parseFloat(expenseForm.amount).toFixed(2));
-                    if (isNaN(amount) || amount <= 0) return alert('請輸入有效的金額');
-                    const item = { ...expenseForm, amount: amount };
-                    if (!item.title) return alert("請填寫項目");
-                    try {
-                        await expensesRef.push().set(item);
-                        closeModal(); 
-                    } catch (e) { alert("儲存失敗: " + e.message); }
-                };
-
-                // --- Helpers ---
-                const formatMoneyEuro = (v) => new Intl.NumberFormat('en-US', {style:'currency', currency:'EUR', minimumFractionDigits:2, maximumFractionDigits:2}).format(v);
-                const formatMoneyEuroWithTWD = (v) => {
-                    const euro = parseFloat(v) || 0;
-                    const twd = Math.round(euro * EURO_TO_TWD);
-                    return `${formatMoneyEuro(euro)} (約 NTD ${new Intl.NumberFormat('zh-TW', {maximumFractionDigits:0}).format(twd)})`;
-                };
-                const formatEuroAmount = () => {
-                    let value = String(expenseForm.amount).replace(/[^0-9.]/g, '');
-                    const parts = value.split('.');
-                    if (parts.length > 1 && parts[1].length > 2) { parts[1] = parts[1].substring(0, 2); value = parts.join('.'); }
-                    expenseForm.amount = value;
-                };
-                const openWeatherSite = () => {
-                    // 原生天氣 App URL Scheme (iOS)
-                    window.location.href = `weather://?index=0`; 
-                    // Fallback
-                    setTimeout(() => window.open(`https://wttr.in/${currentWeather.city}`, '_blank'), 500);
-                };
-                const getWeatherIcon = (condition) => {
-                    if (condition.includes('sun')) return 'fas fa-sun text-yellow-400';
-                    if (condition.includes('snow')) return 'fas fa-snowflake text-blue-200';
-                    if (condition.includes('rain')) return 'fas fa-cloud-rain text-blue-500';
-                    return 'fas fa-cloud text-gray-400';
-                };
-                const getUserPaid = (u) => expenses.value.filter(e => e.payer === u).reduce((s,e) => s+e.amount, 0);
-                const toggleAllBeneficiaries = () => expenseForm.beneficiaries = expenseForm.beneficiaries.length === users.length ? [] : [...users];
-                const toggleBeneficiary = (u) => { const i = expenseForm.beneficiaries.indexOf(u); i>-1 ? expenseForm.beneficiaries.splice(i,1) : expenseForm.beneficiaries.push(u); };
-                const deleteItem = async (id, col) => { if (confirm('確定刪除？')) await db.ref(col).child(id).remove(); };
-                const editItem = (item) => { isEditing.value = true; editingId.value = item.id; Object.assign(itineraryForm, { ...item }); currentTab.value = 'itinerary'; showAddModal.value = true; };
+                const formatMoneyEuro = (v) => "€" + v.toFixed(2);
+                const formatMoneyEuroWithTWD = (v) => `€${v.toFixed(2)} (~NT$${Math.round(v*34)})`;
+                const getWeatherIcon = (c) => c.includes('snow') ? 'fas fa-snowflake' : 'fas fa-cloud';
+                const getUserPaid = (u) => expenses.value.filter(e => e.payer === u).reduce((s,e) => s+Number(e.amount), 0);
+                const jumpToMap = (loc) => { selectedLocation.value = loc; switchTab('map'); };
+                const openWeatherSite = () => window.open(`https://wttr.in/${currentWeather.city}`, '_blank');
 
                 return {
-                    loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement, currentWeather, mapLoaded,
-                    isBottomSheetOpen, selectedLocation, // 新增的狀態
-                    uniqueDates, selectedDate, filteredItinerary, totalExpense, sortedExpenses, uniqueLocations, settlements,
-                    itineraryForm, expenseForm, mainContainer,
-                    selectDate, formatMoneyEuro, formatMoneyEuroWithTWD, getUserPaid, toggleAllBeneficiaries, toggleBeneficiary, closeModal, editItem, saveItinerary, deleteItem, saveExpense, getWeatherIcon,
-                    formatEuroAmount, switchTab, focusMap, focusCurrentLocation, openAddModal, openWeatherSite, jumpToMap, 
-                    toggleBottomSheet, selectLocation // 新增的方法
+                    loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement,
+                    itineraryItems, expenses, itineraryForm, expenseForm, currentWeather,
+                    uniqueDates, selectedDate, filteredItinerary, uniqueLocations, sortedExpenses, totalExpense, settlements,
+                    isBottomSheetOpen, selectedLocation, // New States
+                    selectDate, switchTab, openAddModal, closeModal, saveItinerary, saveExpense, deleteItem, editItem,
+                    formatMoneyEuro, formatMoneyEuroWithTWD, getWeatherIcon, getUserPaid, jumpToMap, openWeatherSite, selectLocation
                 };
             }
         };
