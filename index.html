@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>北歐極光之旅 (雲端同步版)</title>
+    <title>北歐極光之旅 (完整版)</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -54,14 +52,16 @@
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        /* Google Maps Container */
         #google-map { width: 100%; height: 100%; }
+        .tab-active { background-color: #3B82F6; color: white; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5); transform: scale(1.05); }
+        .tab-inactive { background-color: #F3F4F6; color: #6B7280; }
     </style>
 </head>
 <body class="text-gray-800 h-screen overflow-hidden flex flex-col bg-gray-100">
 
     <div id="app" class="h-full flex flex-col max-w-md mx-auto bg-white shadow-2xl relative overflow-hidden w-full">
         
+        <!-- Header -->
         <header class="bg-white px-5 py-4 flex justify-between items-center z-10 border-b border-gray-100 shrink-0">
             <div class="flex-1">
                 <h1 class="text-xl font-bold text-gray-900 tracking-tight flex items-center">
@@ -74,12 +74,13 @@
                 <p class="text-xs text-gray-500 mt-0.5" v-if="currentTab === 'expenses'">總支出: {{ formatMoneyEuroWithTWD(totalExpense) }}</p>
             </div>
             
-            <button v-if="currentTab !== 'map'" @click="showAddModal = true" class="w-10 h-10 rounded-full bg-blue-50 text-primary flex items-center justify-center hover:bg-blue-100 transition shadow-sm active:scale-95">
+            <button v-if="currentTab !== 'map'" @click="openAddModal" class="w-10 h-10 rounded-full bg-blue-50 text-primary flex items-center justify-center hover:bg-blue-100 transition shadow-sm active:scale-95">
                 <i class="fas fa-plus text-lg"></i>
             </button>
         </header>
 
-        <main class="flex-1 overflow-y-auto no-scrollbar relative bg-gray-50">
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto no-scrollbar relative bg-gray-50" ref="mainContainer">
             
             <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white z-50">
                 <div class="flex flex-col items-center">
@@ -88,27 +89,31 @@
                 </div>
             </div>
 
+            <!-- Tab: Itinerary -->
             <div v-if="currentTab === 'itinerary'" class="pb-24">
+                <!-- Date Scroll -->
                 <div class="sticky top-0 bg-white/95 backdrop-blur z-10 shadow-sm border-b border-gray-100">
-                    <div class="flex overflow-x-auto no-scrollbar py-3 px-2 space-x-2">
+                    <div class="flex overflow-x-auto no-scrollbar py-3 px-2 space-x-2" ref="dateScroll">
                         <button v-for="date in uniqueDates" :key="date.date"
-                            @click="selectedDate = date.date; scrollToTop()"
+                            @click="selectDate(date.date)"
                             :class="['flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap', 
-                                     selectedDate === date.date ? 'bg-primary text-white shadow-md transform scale-105' : 'bg-gray-100 text-gray-500 hover:bg-gray-200']">
+                                     selectedDate === date.date ? 'tab-active' : 'tab-inactive hover:bg-gray-200']">
                             {{ date.display }}
                         </button>
                     </div>
 
-                    <div v-if="currentWeather.temp !== 'N/A'" @click="openWeatherSite" class="flex items-center mx-4 my-2 p-3 bg-blue-50 rounded-xl cursor-pointer hover:bg-blue-100 transition active:scale-[0.98]">
+                    <!-- Weather Widget -->
+                    <div @click="openWeatherSite" class="flex items-center mx-4 my-2 p-3 bg-blue-50 rounded-xl cursor-pointer hover:bg-blue-100 transition active:scale-[0.98]">
                         <i :class="['text-3xl mr-3 weather-icon', getWeatherIcon(currentWeather.condition)]"></i>
                         <div class="text-left flex-1">
-                            <div class="text-sm font-medium text-gray-800">{{ currentWeather.city }} - 今日天氣</div>
-                            <div class="text-xl font-bold text-gray-900">{{ currentWeather.temp }}°C</div>
+                            <div class="text-sm font-medium text-gray-800">{{ currentWeather.city }} - 今日概況</div>
+                            <div class="text-xl font-bold text-gray-900">{{ currentWeather.temp }}</div>
                         </div>
                         <i class="fas fa-external-link-alt text-gray-400 text-sm"></i>
                     </div>
                 </div>
 
+                <!-- Itinerary List -->
                 <div class="px-4 py-6 space-y-4">
                     <div v-if="filteredItinerary.length === 0" class="text-center py-10 text-gray-400">
                         <i class="fas fa-snowflake text-4xl mb-3 opacity-30"></i>
@@ -126,19 +131,21 @@
                                 </div>
                             </div>
                             <h3 class="font-bold text-gray-800 text-lg mb-1">{{ item.title }}</h3>
-                            <div v-if="item.location" class="flex items-center text-gray-500 text-sm mb-2 mt-2" @click="openGoogleMapQuery(item.location)">
+                            
+                            <!-- Location (Clickable) -->
+                            <div v-if="item.location" class="flex items-center text-gray-500 text-sm mb-2 mt-2 cursor-pointer hover:text-blue-600 transition" @click="jumpToMap(item.location)">
                                 <i class="fas fa-map-marker-alt text-red-400 mr-2"></i>
                                 <span class="underline decoration-dotted decoration-gray-400">{{ item.location }}</span>
+                                <i class="fas fa-chevron-right text-xs ml-1 opacity-50"></i>
                             </div>
-                            <p v-if="item.notes" class="text-gray-600 text-sm mt-2 bg-gray-50 p-2 rounded-lg leading-relaxed">{{ item.notes }}</p>
-                            <button @click="openGoogleMapQuery(item.location || item.title)" class="mt-3 w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-medium flex items-center justify-center transition-colors">
-                                <i class="fas fa-location-arrow mr-2"></i> 外部導航
-                            </button>
+                            
+                            <p v-if="item.notes" class="text-gray-600 text-sm mt-2 bg-gray-50 p-2 rounded-lg leading-relaxed whitespace-pre-wrap">{{ item.notes }}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- Tab: Expenses -->
             <div v-if="currentTab === 'expenses'" class="pb-24">
                 <div class="p-5 space-y-3">
                     <div class="space-y-3">
@@ -197,12 +204,25 @@
                 </div>
             </div>
 
+            <!-- Tab: Map -->
             <div v-if="currentTab === 'map'" class="h-full flex flex-col">
                 <div class="shrink-0 h-1/3 overflow-y-auto no-scrollbar p-4 space-y-2 border-b border-gray-200">
-                    <h3 class="font-bold text-lg text-gray-800 mb-3">所有行程地點 ({{ uniqueLocations.length }})</h3>
+                    <h3 class="font-bold text-lg text-gray-800 mb-3">所有行程地點</h3>
+                    
+                    <!-- Current Location Button -->
+                    <button @click="focusCurrentLocation" 
+                        class="w-full bg-blue-50 p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-blue-100 active:scale-95 transition border border-blue-100">
+                        <div class="flex items-center text-blue-600">
+                            <i class="fas fa-location-arrow text-xl mr-3"></i>
+                            <span class="font-bold text-left">📍 目前位置</span>
+                        </div>
+                        <i class="fas fa-crosshairs text-blue-400 ml-2"></i>
+                    </button>
+
                     <div v-if="uniqueLocations.length === 0" class="text-center py-5 text-gray-400 text-sm">
-                         <i class="fas fa-map-pin text-3xl mb-2 opacity-30"></i><p>尚未新增任何地點</p>
+                         <p>尚未新增任何地點</p>
                     </div>
+
                     <button v-for="loc in uniqueLocations" :key="loc"
                         @click="focusMap(loc)"
                         class="w-full bg-white p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-gray-50 active:scale-95 transition">
@@ -210,7 +230,6 @@
                             <i class="fas fa-map-marker-alt text-red-400 text-xl mr-3"></i>
                             <span class="font-medium text-gray-700 text-left truncate">{{ loc }}</span>
                         </div>
-                        <i class="fas fa-crosshairs text-gray-400 ml-2"></i>
                     </button>
                 </div>
                 
@@ -225,6 +244,7 @@
 
         </main>
 
+        <!-- Bottom Navigation -->
         <nav class="bg-white border-t border-gray-100 py-2 px-4 flex justify-around items-center shrink-0 pb-safe">
             <button @click="switchTab('itinerary')" :class="['flex flex-col items-center py-2 px-4 transition-colors', currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400']">
                 <i class="fas fa-calendar-alt text-xl mb-1"></i>
@@ -240,6 +260,7 @@
             </button>
         </nav>
 
+        <!-- Add Modal -->
         <div v-if="showAddModal" @click.self="closeModal" class="fixed inset-0 bg-black/50 flex items-end z-50 animate-fadeIn">
             <div class="bg-white w-full rounded-t-3xl p-6 pb-safe max-h-[85vh] overflow-y-auto slide-up">
                 <div class="flex justify-between items-center mb-5">
@@ -292,8 +313,7 @@
     </div>
 
     <script>
-        // 確保 Vue 函式被正確解構
-        const { createApp, ref, computed, reactive, onMounted, watch } = Vue;
+        const { createApp, ref, computed, reactive, onMounted, watch, nextTick } = Vue;
 
         const App = {
             setup() {
@@ -311,33 +331,25 @@
                 const editingId = ref(null);
                 const showSettlement = ref(false);
                 const selectedDate = ref('2025-12-23');
-                const users = ['Han', 'Sylvia', 'Messi', 'Cheryl']; // 2. 人員名單
-                const EURO_TO_TWD = 34.5; // 6. 歐元匯率 (模擬)
+                const users = ['Han', 'Sylvia', 'Messi', 'Cheryl'];
+                const EURO_TO_TWD = 34.5;
+                const mainContainer = ref(null);
 
                 const itineraryItems = ref([]);
                 const expenses = ref([]);
-                const mapLoaded = ref(false); // 地圖載入狀態
+                const mapLoaded = ref(false);
 
                 const itineraryForm = reactive({ date: '2025-12-23', time: '09:00', title: '', location: '', notes: '' });
                 const expenseForm = reactive({ title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
 
-                // Weather (模擬數據)
-                const weather = reactive({ temp: null, condition: '', city: '' });
-                const weatherData = {
-                    '2025-12-20': { temp: 25, condition: 'sunny', city: 'Taipei' },
-                    '2025-12-21': { temp: 0, condition: 'snow', city: 'Stockholm' },
-                    '2025-12-22': { temp: -1, condition: 'light snow', city: 'Stockholm' },
-                    '2025-12-23': { temp: -5, condition: 'cloudy', city: 'Helsinki' },
-                    '2025-12-24': { temp: -8, condition: 'snow', city: 'Helsinki' }, 
-                    '2026-01-03': { temp: 5, condition: 'cloudy', city: 'Copenhagen' },
-                    '2026-01-04': { temp: 0, condition: 'mist', city: 'Beijing' },
-                    '2026-01-05': { temp: 15, condition: 'sunny', city: 'Taipei' },
-                };
+                // Weather State (動態)
+                const currentWeather = reactive({ temp: 'N/A', condition: 'cloudy', city: 'Nordic' });
                 
                 // Google Maps Objects
                 let map = null;
                 let markers = [];
                 let geocoder = null;
+                let userLocationMarker = null;
 
                 // --- Computed Properties ---
                 const pageTitle = computed(() => {
@@ -348,12 +360,11 @@
 
                 const getDayName = (dateStr) => new Date(dateStr).toLocaleDateString('zh-TW', { weekday: 'short' }).replace('星期', '週');
 
-                // 5. 日期 Tab 顯示調整 (包含 D編號)
                 const uniqueDates = computed(() => {
                     const allDates = new Set(itineraryItems.value.map(i => i.date));
-                    // 確保至少有預設日期，以防 Firebase 載入慢
-                    ['2025-12-20', '2025-12-21', '2025-12-23', '2026-01-03', '2026-01-05'].forEach(d => allDates.add(d));
-
+                    // 確保重要日期存在
+                    ['2025-12-20', '2025-12-21', '2025-12-23', '2025-12-31', '2026-01-03', '2026-01-05'].forEach(d => allDates.add(d));
+                    
                     return Array.from(allDates).sort().map((date, index) => {
                         const dayNumber = index + 1;
                         const dayName = getDayName(date);
@@ -364,12 +375,9 @@
                     });
                 });
 
-                const currentWeather = computed(() => weatherData[selectedDate.value] || { temp: 'N/A', condition: 'cloudy', city: '未知' });
                 const filteredItinerary = computed(() => itineraryItems.value.filter(i => i.date === selectedDate.value).sort((a,b) => a.time.localeCompare(b.time)));
                 const totalExpense = computed(() => expenses.value.reduce((sum, i) => sum + (Number(i.amount)||0), 0));
                 const sortedExpenses = computed(() => [...expenses.value].sort((a,b) => new Date(b.date) - new Date(a.date)));
-                
-                // 8. 所有地點列表
                 const uniqueLocations = computed(() => [...new Set(itineraryItems.value.filter(i => i.location).map(i => i.location))]);
                 
                 const settlements = computed(() => {
@@ -382,7 +390,6 @@
                         const split = e.amount / beneficiaries.length;
                         beneficiaries.forEach(b => balance[b] -= split);
                     });
-                    
                     let debtors = Object.keys(balance).filter(p => balance[p] < -0.01).map(p => ({n:p, a:balance[p]})).sort((a,b)=>a.a-b.a);
                     let creditors = Object.keys(balance).filter(p => balance[p] > 0.01).map(p => ({n:p, a:balance[p]})).sort((a,b)=>b.a-a.a);
                     const res = [];
@@ -405,41 +412,121 @@
                     return `第 ${index + 1} 天`;
                 });
 
+                // --- Methods: Weather Logic ---
+                const updateWeather = () => {
+                    // 根據當天第一個行程的地點推斷城市
+                    let city = "Nordic";
+                    let temp = "-3°C";
+                    let condition = "cloudy";
+
+                    if (filteredItinerary.value.length > 0) {
+                        const loc = filteredItinerary.value[0].location || "";
+                        if (loc.match(/Stockholm|斯德哥爾摩|ARN/i)) { city = "Stockholm"; temp = "-1°C"; condition = "snow"; }
+                        else if (loc.match(/Helsinki|赫爾辛基|HEL/i)) { city = "Helsinki"; temp = "-5°C"; condition = "snow"; }
+                        else if (loc.match(/Rovaniemi|羅瓦涅米|RVN|聖誕老人/i)) { city = "Rovaniemi"; temp = "-12°C"; condition = "snow"; }
+                        else if (loc.match(/Oslo|奧斯陸|OSL/i)) { city = "Oslo"; temp = "-4°C"; condition = "cloudy"; }
+                        else if (loc.match(/Bergen|卑爾根|BGO/i)) { city = "Bergen"; temp = "1°C"; condition = "rain"; }
+                        else if (loc.match(/Copenhagen|哥本哈根|CPH/i)) { city = "Copenhagen"; temp = "3°C"; condition = "cloudy"; }
+                        else if (loc.match(/Taipei|TPE|台北/i)) { city = "Taipei"; temp = "18°C"; condition = "rain"; }
+                        else if (loc.match(/Bangkok|BKK|曼谷/i)) { city = "Bangkok"; temp = "30°C"; condition = "sunny"; }
+                        else if (loc.match(/Beijing|PEK|北京/i)) { city = "Beijing"; temp = "0°C"; condition = "mist"; }
+                    }
+
+                    currentWeather.city = city;
+                    currentWeather.temp = temp;
+                    currentWeather.condition = condition;
+                };
+
+                // --- Data Seeding (恢復行程) ---
+                const checkAndSeedData = async () => {
+                    const snapshot = await itineraryRef.limit(1).get();
+                    if (snapshot.empty) {
+                        console.log("偵測到無資料，開始匯入完整行程...");
+                        const seedData = [
+                            // 您的獨旅部分
+                            { date: '2025-12-20', time: '18:50', title: '出發：台北飛曼谷', location: '桃園國際機場 (TPE)', notes: 'TG635 (泰國國際航空) TPE -> BKK (21:45)' },
+                            { date: '2025-12-21', time: '00:05', title: '轉機：曼谷飛斯德哥爾摩', location: '蘇凡納布機場 (BKK)', notes: 'TG960 (泰國國際航空) BKK -> ARN (06:45)' },
+                            { date: '2025-12-21', time: '09:00', title: '斯德哥爾摩市區獨旅', location: 'Stockholm City', notes: '探索老城區、瓦薩沈船博物館' },
+                            { date: '2025-12-22', time: '09:00', title: '斯德哥爾摩市區獨旅', location: 'Stockholm City', notes: '地鐵藝術巡禮、攝影博物館' },
+                            
+                            // 朋友會合與北歐團
+                            { date: '2025-12-23', time: '08:20', title: '前往赫爾辛基 (會合)', location: '斯德哥爾摩阿蘭達機場 (ARN)', notes: 'SK702 (SAS) ARN -> HEL (10:35)。朋友 KL1251 13:10 抵達。' },
+                            { date: '2025-12-23', time: '14:00', title: '赫爾辛基大教堂與市區', location: 'Helsinki Cathedral', notes: '集市廣場、設計區、聖誕市集+晚餐' },
+                            { date: '2025-12-24', time: '09:50', title: '飛往羅瓦涅米', location: '赫爾辛基機場 (HEL)', notes: 'AY549 HEL -> RVN (11:10)。' },
+                            { date: '2025-12-24', time: '12:00', title: '聖誕老人村', location: 'Santa Claus Village', notes: '寄明信片、拍照。14:40接送去極光玻璃屋。' },
+                            { date: '2025-12-25', time: '09:00', title: '聖誕老人村一日遊', location: 'Santa Claus Village', notes: 'KKday行程、雪橇、皇宮公園。' },
+                            { date: '2025-12-26', time: '08:00', title: '雪橇 & 極光日', location: 'Nordic Unique Travels', notes: '集合出發。晚上飛往奧斯陸 (AY536->AY919)。' },
+                            { date: '2025-12-27', time: '10:00', title: '奧斯陸市區觀光', location: 'National Museum, Oslo', notes: '下午 National Museum, Frogner Park, Aker Brygge 夜景。' },
+                            { date: '2025-12-28', time: '09:00', title: '奧斯陸歌劇院與市區', location: 'Oslo Opera House', notes: 'MUNCH Museum, 海岸觀景點, 聖誕市集。' },
+                            { date: '2025-12-29', time: '10:30', title: '峽灣遊船', location: 'Rådhusbrygge 2, Oslo', notes: '10:30-13:00 遊船。下午前往 Bergen。' },
+                            { date: '2025-12-30', time: '14:00', title: 'Holmenkollen 雪國跳台', location: 'Holmenkollen Ski Jump', notes: '晚間返回奧斯陸機場旁住宿。' },
+                            { date: '2025-12-31', time: '11:05', title: '飛往哥本哈根 (跨年)', location: '奧斯陸加勒穆恩機場 (OSL)', notes: 'SK1467 OSL -> CPH (12:20)。' },
+                            { date: '2025-12-31', time: '20:00', title: '新港跨年', location: 'Nyhavn, Copenhagen', notes: '港邊或市府廣場跨年，夜店慶祝。' },
+                            { date: '2026-01-01', time: '10:00', title: '哥本哈根一日遊', location: 'Amalienborg', notes: '羅森堡城堡、阿馬林堡宮、Tivoli 花園。' },
+                            { date: '2026-01-02', time: '09:00', title: '瑞典馬爾摩之旅', location: 'Malmö, Sweden', notes: '搭火車前往，參觀隆德大教堂。' },
+                            
+                            // 您的回程
+                            { date: '2026-01-03', time: '10:00', title: '馬爾摩觀光', location: 'Turning Torso, Malmö', notes: '旋轉大樓、Malmo Castle。下午前往機場。' },
+                            { date: '2026-01-03', time: '18:00', title: '回程：哥本哈根飛北京', location: '哥本哈根機場 (CPH)', notes: 'CA878 (國航) CPH -> PEK (09:45+1)。朋友續留哥本哈根逛 Tivoli。' },
+                            { date: '2026-01-04', time: '09:45', title: '抵達北京轉機', location: '北京首都國際機場 (PEK)', notes: '等待轉機。' },
+                            { date: '2026-01-05', time: '08:20', title: '回程：北京飛台北', location: '北京首都國際機場 (PEK)', notes: 'CA185 PEK -> TPE (11:40)。' }
+                        ];
+
+                        const batch = db.batch();
+                        seedData.forEach(doc => {
+                            const docRef = itineraryRef.doc();
+                            batch.set(docRef, doc);
+                        });
+                        await batch.commit();
+                        console.log("行程匯入完成！");
+                        // 強制重整以顯示數據
+                        window.location.reload();
+                    }
+                };
+
                 // --- Data Listeners ---
                 onMounted(() => {
-                    // 載入 Google Maps 腳本
-                    if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== "YOUR_GOOGLE_MAPS_API_KEY") {
+                    checkAndSeedData();
+
+                    // Google Maps Script
+                    if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== "") {
                         const script = document.createElement('script');
                         script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initMap`;
                         script.async = true;
                         script.defer = true;
                         document.head.appendChild(script);
-                        window.initMap = initMap; // 設置全局回調
-                    } else {
-                        console.error("請填寫 Google Maps API Key 以啟用地圖功能。");
+                        window.initMap = initMap;
                     }
-                    
-                    // Firebase Real-time Listeners
+
+                    // Firebase Listeners
                     itineraryRef.orderBy('date').orderBy('time').onSnapshot(snapshot => {
                         itineraryItems.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         loading.value = false;
-                        updateMapMarkers(); // 資料更新時更新地圖標記
-                        if (!itineraryItems.value.some(i => i.date === selectedDate.value) && uniqueDates.value.length > 0) {
-                            selectedDate.value = uniqueDates.value[0].date;
-                        }
-                    }, err => {
-                        console.error("Firebase 行程載入失敗: ", err);
-                        loading.value = false;
+                        updateWeather();
                     });
 
                     expensesRef.orderBy('date', 'desc').onSnapshot(snapshot => {
                         expenses.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     });
-
-                    updateWeather(selectedDate.value);
                 });
                 
-                watch(selectedDate, (newDate) => { updateWeather(newDate); });
+                // 監聽 selectedDate 改變天氣
+                watch(selectedDate, () => {
+                     updateWeather(); 
+                     if (mainContainer.value) mainContainer.value.scrollTop = 0;
+                });
+
+                // 監聽 uniqueLocations 變化以更新地圖 (修復新增地點不顯示問題)
+                watch(uniqueLocations, () => {
+                    if (map && mapLoaded.value) {
+                         updateMapMarkers();
+                    }
+                }, { deep: true });
+
+                // --- Function: Select Date (修復點擊切換問題) ---
+                const selectDate = (date) => {
+                    selectedDate.value = date;
+                };
 
                 // --- Google Maps Logic ---
                 const initMap = () => {
@@ -448,12 +535,11 @@
                 };
 
                 const renderMap = () => {
-                    if (!mapLoaded.value) return; // Wait for script to load
-
+                    if (!mapLoaded.value) return; 
                     if (!map && document.getElementById('google-map')) {
                         map = new google.maps.Map(document.getElementById('google-map'), {
-                            center: { lat: 59.3293, lng: 18.0686 }, // 斯德哥爾摩
-                            zoom: 10,
+                            center: { lat: 59.3293, lng: 18.0686 },
+                            zoom: 5,
                             disableDefaultUI: true,
                             zoomControl: true,
                         });
@@ -465,170 +551,147 @@
 
                 const updateMapMarkers = () => {
                     if (!map || !geocoder) return;
+                    // Clear old markers
                     markers.forEach(m => m.setMap(null));
                     markers = [];
+                    if (userLocationMarker) userLocationMarker.setMap(null);
 
                     const locs = uniqueLocations.value;
                     let bounds = new google.maps.LatLngBounds();
                     
-                    if (locs.length === 0) {
-                        if (map) map.setCenter({ lat: 59.3293, lng: 18.0686 });
-                        return;
-                    }
+                    if (locs.length === 0) return;
 
-                    locs.forEach(address => {
-                        geocoder.geocode({ address: address }, (results, status) => {
-                            if (status === 'OK' && results[0]) {
-                                const position = results[0].geometry.location;
-                                const marker = new google.maps.Marker({
-                                    map: map,
-                                    position: position,
-                                    title: address,
-                                    animation: google.maps.Animation.DROP
-                                });
-                                
-                                markers.push(marker);
-                                bounds.extend(position);
-
-                                // If only one location, center and zoom in
-                                if (locs.length === 1 && map) {
-                                    map.setCenter(position);
-                                    map.setZoom(15);
-                                } else if (locs.length > 1 && map) {
-                                    // If multiple locations, fit all markers
-                                    map.fitBounds(bounds);
+                    // 批次處理 Geocoding (簡單版，不處理 Rate Limit，實際專案建議加 Delay)
+                    locs.forEach((address, index) => {
+                        setTimeout(() => { // 稍微錯開請求
+                            geocoder.geocode({ address: address }, (results, status) => {
+                                if (status === 'OK' && results[0]) {
+                                    const position = results[0].geometry.location;
+                                    const marker = new google.maps.Marker({
+                                        map: map,
+                                        position: position,
+                                        title: address,
+                                        label: { text: (index + 1).toString(), color: "white", fontSize: "12px" },
+                                        animation: google.maps.Animation.DROP
+                                    });
+                                    markers.push(marker);
+                                    bounds.extend(position);
+                                    if (locs.length > 1) map.fitBounds(bounds);
+                                    else { map.setCenter(position); map.setZoom(15); }
                                 }
-                            }
-                        });
+                            });
+                        }, index * 200);
                     });
                 };
                 
-                // 點擊地點列表項目時聚焦地圖
                 const focusMap = (address) => {
-                    if(!map || !geocoder) {
-                        alert("地圖功能未完全載入，請稍候。");
-                        return;
-                    }
+                    if(!map || !geocoder) return;
                     geocoder.geocode({ address: address }, (results, status) => {
                         if (status === 'OK') {
                             map.setCenter(results[0].geometry.location);
                             map.setZoom(15);
-                        } else {
-                             alert(`無法找到地點: ${address}`);
                         }
                     });
                 };
 
-                const switchTab = (tab) => {
-                    currentTab.value = tab;
-                    if (tab === 'map') {
-                        setTimeout(renderMap, 100); // 確保 DOM 渲染後再執行地圖邏輯
+                const focusCurrentLocation = () => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition((position) => {
+                            const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                            if (userLocationMarker) userLocationMarker.setMap(null);
+                            userLocationMarker = new google.maps.Marker({
+                                position: pos,
+                                map: map,
+                                title: "Your Location",
+                                icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#4285F4", fillOpacity: 1, strokeColor: "white", strokeWeight: 2 },
+                            });
+                            map.setCenter(pos);
+                            map.setZoom(15);
+                        }, () => alert("無法獲取您的位置"));
+                    } else {
+                        alert("您的瀏覽器不支援定位功能");
                     }
                 };
+
+                const jumpToMap = (location) => {
+                    switchTab('map');
+                    // 等待 DOM 切換完成後執行聚焦
+                    setTimeout(() => {
+                        focusMap(location);
+                    }, 500);
+                };
+
+                const switchTab = (tab) => {
+                    currentTab.value = tab;
+                    if (tab === 'map') setTimeout(renderMap, 100);
+                };
                 
-                // --- CRUD Operations (使用 Firebase) ---
+                // --- UI Actions ---
+                const openAddModal = () => {
+                    // 預設日期為當前 Tab 選中的日期
+                    itineraryForm.date = selectedDate.value;
+                    showAddModal.value = true;
+                };
+
+                const closeModal = () => {
+                    showAddModal.value = false; isEditing.value = false; editingId.value = null;
+                    Object.assign(itineraryForm, { date: selectedDate.value, time: '09:00', title: '', location: '', notes: '' });
+                    Object.assign(expenseForm, { title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
+                };
+
                 const saveItinerary = async () => {
                     const item = { ...itineraryForm };
                     if (!item.title) return alert("請填寫標題");
                     try {
-                        if (isEditing.value) {
-                            await itineraryRef.doc(editingId.value).update(item);
-                        } else {
-                            // 4. 新增您的行程 (初始資料)
-                            if (itineraryItems.value.length === 0) {
-                                // 首次新增時，若無資料，可將使用者行程作為初始數據寫入
-                                const initialItinerary = [
-                                    { date: '2025-12-20', time: '18:50', title: 'TPE ➜ BKK 航班', location: '桃園國際機場 (TPE)', notes: 'TG635 (泰國國際航空). 18:50 ➜ 21:45 (曼谷)' },
-                                    { date: '2025-12-21', time: '00:05', title: 'BKK ➜ ARN 航班', location: '蘇凡納布國際機場 (BKK)', notes: 'TG960 (泰國國際航空). 00:05 ➜ 06:45 (斯德哥爾摩)' },
-                                    { date: '2025-12-23', time: '08:20', title: 'ARN ➜ HEL 航班 (與朋友會合)', location: '斯德哥爾摩阿蘭達機場 (ARN)', notes: 'SK702 (北歐航空SAS). 08:20 ➜ 10:35 (赫爾辛基)' },
-                                    { date: '2026-01-03', time: '18:00', title: 'CPH ➜ PEK 航班 (回程)', location: '哥本哈根機場 (CPH)', notes: 'CA878 (中國國際航空). 18:00 ➜ 01/04 09:45 (北京)' },
-                                    { date: '2026-01-05', time: '08:20', title: 'PEK ➜ TPE 航班 (回程)', location: '北京首都國際機場 (PEK)', notes: 'CA185 (中國國際航空). 08:20 ➜ 11:40 (台北)' },
-                                ];
-                                // 避免重複寫入：只在第一次使用時寫入預設行程
-                                for (const i of initialItinerary) {
-                                    await itineraryRef.add(i);
-                                }
-                            }
-                            await itineraryRef.add(item);
-                        }
-                        closeModal();
-                    } catch (e) { alert("儲存行程失敗: " + e.message); }
+                        if (isEditing.value) await itineraryRef.doc(editingId.value).update(item);
+                        else await itineraryRef.add(item);
+                        closeModal(); // 需求 2: 關閉 BottomSheet
+                    } catch (e) { alert("儲存失敗: " + e.message); }
                 };
 
                 const saveExpense = async () => {
-                    // 6. 強制四捨五入到小數點後兩位
                     const amount = Number(parseFloat(expenseForm.amount).toFixed(2));
                     if (isNaN(amount) || amount <= 0) return alert('請輸入有效的金額');
-                    
                     const item = { ...expenseForm, amount: amount };
                     if (!item.title) return alert("請填寫項目");
-                    
                     try {
                         await expensesRef.add(item);
-                        closeModal();
-                    } catch (e) { alert("儲存支出失敗: " + e.message); }
-                };
-
-                const deleteItem = async (id, collectionName) => {
-                    if (!confirm('確定刪除此項目嗎？')) return;
-                    try {
-                        await db.collection(collectionName).doc(id).delete();
-                    } catch (e) { alert("刪除失敗: " + e.message); }
+                        closeModal(); // 需求 2: 關閉 BottomSheet
+                    } catch (e) { alert("儲存失敗: " + e.message); }
                 };
 
                 // --- Helpers ---
-                const scrollToTop = () => document.querySelector('main').scrollTop = 0;
                 const formatMoneyEuro = (v) => new Intl.NumberFormat('en-US', {style:'currency', currency:'EUR', minimumFractionDigits:2, maximumFractionDigits:2}).format(v);
-                
-                // 6. 歐元轉台幣顯示
                 const formatMoneyEuroWithTWD = (v) => {
                     const euro = parseFloat(v) || 0;
                     const twd = Math.round(euro * EURO_TO_TWD);
                     return `${formatMoneyEuro(euro)} (約 NTD ${new Intl.NumberFormat('zh-TW', {maximumFractionDigits:0}).format(twd)})`;
                 };
-                
                 const formatEuroAmount = () => {
-                    // 確保輸入值為有效數字，並限制小數點後兩位
                     let value = String(expenseForm.amount).replace(/[^0-9.]/g, '');
                     const parts = value.split('.');
-                    if (parts.length > 1 && parts[1].length > 2) {
-                        parts[1] = parts[1].substring(0, 2);
-                        value = parts.join('.');
-                    }
+                    if (parts.length > 1 && parts[1].length > 2) { parts[1] = parts[1].substring(0, 2); value = parts.join('.'); }
                     expenseForm.amount = value;
                 };
-
-                const openWeatherSite = () => window.open('https://wttr.in/Stockholm', '_blank');
+                const openWeatherSite = () => window.open(`https://wttr.in/${currentWeather.city}`, '_blank');
                 const getWeatherIcon = (condition) => {
-                    if (condition.includes('sun') || condition.includes('clear')) return 'fas fa-sun text-yellow-400';
-                    if (condition.includes('snow') || condition.includes('frost')) return 'fas fa-snowflake text-blue-200';
+                    if (condition.includes('sun')) return 'fas fa-sun text-yellow-400';
+                    if (condition.includes('snow')) return 'fas fa-snowflake text-blue-200';
                     if (condition.includes('rain')) return 'fas fa-cloud-rain text-blue-500';
                     return 'fas fa-cloud text-gray-400';
                 };
-                const openGoogleMapQuery = (loc) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`, '_blank');
                 const getUserPaid = (u) => expenses.value.filter(e => e.payer === u).reduce((s,e) => s+e.amount, 0);
                 const toggleAllBeneficiaries = () => expenseForm.beneficiaries = expenseForm.beneficiaries.length === users.length ? [] : [...users];
                 const toggleBeneficiary = (u) => { const i = expenseForm.beneficiaries.indexOf(u); i>-1 ? expenseForm.beneficiaries.splice(i,1) : expenseForm.beneficiaries.push(u); };
-                
-                const closeModal = () => {
-                    showAddModal.value = false; isEditing.value = false; editingId.value = null;
-                    // 重設表單
-                    Object.assign(itineraryForm, { date: selectedDate.value, time: '09:00', title: '', location: '', notes: '' });
-                    Object.assign(expenseForm, { title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
-                };
-
-                const editItem = (item) => {
-                    isEditing.value = true; editingId.value = item.id;
-                    Object.assign(itineraryForm, { ...item });
-                    currentTab.value = 'itinerary'; showAddModal.value = true;
-                };
+                const deleteItem = async (id, col) => { if (confirm('確定刪除？')) await db.collection(col).doc(id).delete(); };
+                const editItem = (item) => { isEditing.value = true; editingId.value = item.id; Object.assign(itineraryForm, { ...item }); currentTab.value = 'itinerary'; showAddModal.value = true; };
 
                 return {
-                    loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement, weather, currentWeather, mapLoaded,
+                    loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement, currentWeather, mapLoaded,
                     uniqueDates, selectedDate, filteredItinerary, totalExpense, sortedExpenses, uniqueLocations, settlements,
-                    itineraryForm, expenseForm,
-                    scrollToTop, formatMoneyEuro, formatMoneyEuroWithTWD, openGoogleMapQuery, getUserPaid, toggleAllBeneficiaries, toggleBeneficiary, closeModal, editItem, saveItinerary, deleteItem, saveExpense, getWeatherIcon,
-                    formatEuroAmount, switchTab, focusMap
+                    itineraryForm, expenseForm, mainContainer,
+                    selectDate, formatMoneyEuro, formatMoneyEuroWithTWD, getUserPaid, toggleAllBeneficiaries, toggleBeneficiary, closeModal, editItem, saveItinerary, deleteItem, saveExpense, getWeatherIcon,
+                    formatEuroAmount, switchTab, focusMap, focusCurrentLocation, openAddModal, openWeatherSite, jumpToMap
                 };
             }
         };
