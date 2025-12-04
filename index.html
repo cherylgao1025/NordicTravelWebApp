@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>北歐極光之旅 (完整版)</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -41,25 +41,60 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #F3F4F6; -webkit-tap-highlight-color: transparent; }
+        
+        /* 基礎設定 */
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            background-color: #F3F4F6; 
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none; /* 防止 iOS 橡皮筋效果 */
+        }
+
+        /* 隱藏滾動條 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* UI 陰影與動畫 */
         .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         .weather-icon { animation: float 3s ease-in-out infinite; }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
         .slide-up { animation: slideUp 0.3s ease-out forwards; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        #google-map { width: 100%; height: 100%; }
+        
+        /* Tab 樣式 */
         .tab-active { background-color: #3B82F6; color: white; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5); transform: scale(1.05); }
         .tab-inactive { background-color: #F3F4F6; color: #6B7280; }
+
+        /* 地圖容器 */
+        #google-map { width: 100%; height: 100%; }
+
+        /* iOS Safe Area 適配 */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        
+        /* 數字標記 */
+        .map-number-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background-color: #EF4444; /* red-500 */
+            color: white;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 12px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+        }
     </style>
 </head>
-<body class="text-gray-800 h-screen overflow-hidden flex flex-col bg-gray-100">
+<body>
 
-    <div id="app" class="h-full flex flex-col max-w-md mx-auto bg-white shadow-2xl relative overflow-hidden w-full">
+    <!-- App Container: 使用 fixed inset-0 確保在手機上填滿可視區域，避免被網址列推擠 -->
+    <div id="app" class="fixed inset-0 flex flex-col max-w-md mx-auto bg-white shadow-2xl overflow-hidden w-full z-0">
         
         <!-- Header -->
         <header class="bg-white px-5 py-4 flex justify-between items-center z-10 border-b border-gray-100 shrink-0">
@@ -213,8 +248,8 @@
                     <button @click="focusCurrentLocation" 
                         class="w-full bg-blue-50 p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-blue-100 active:scale-95 transition border border-blue-100">
                         <div class="flex items-center text-blue-600">
-                            <i class="fas fa-location-arrow text-xl mr-3"></i>
-                            <span class="font-bold text-left">📍 目前位置</span>
+                            <i class="fas fa-location-arrow text-xl mr-3" style="width: 24px; text-align: center;"></i>
+                            <span class="font-bold text-left ml-3">目前位置</span>
                         </div>
                         <i class="fas fa-crosshairs text-blue-400 ml-2"></i>
                     </button>
@@ -223,13 +258,16 @@
                          <p>尚未新增任何地點</p>
                     </div>
 
-                    <button v-for="loc in uniqueLocations" :key="loc"
+                    <!-- Location Items with Numbers -->
+                    <button v-for="(loc, index) in uniqueLocations" :key="loc"
                         @click="focusMap(loc)"
                         class="w-full bg-white p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-gray-50 active:scale-95 transition">
-                        <div class="flex items-center">
-                            <i class="fas fa-map-marker-alt text-red-400 text-xl mr-3"></i>
-                            <span class="font-medium text-gray-700 text-left truncate">{{ loc }}</span>
+                        <div class="flex items-center overflow-hidden">
+                            <!-- Number Badge -->
+                            <div class="map-number-badge">{{ index + 1 }}</div>
+                            <span class="font-medium text-gray-700 text-left truncate flex-1">{{ loc }}</span>
                         </div>
+                        <i class="fas fa-chevron-right text-gray-300 text-xs ml-2"></i>
                     </button>
                 </div>
                 
@@ -245,7 +283,8 @@
         </main>
 
         <!-- Bottom Navigation -->
-        <nav class="bg-white border-t border-gray-100 py-2 px-4 flex justify-around items-center shrink-0 pb-safe">
+        <!-- Added pb-safe and border-t handling -->
+        <nav class="bg-white border-t border-gray-100 py-2 px-4 flex justify-around items-center shrink-0 pb-safe z-50">
             <button @click="switchTab('itinerary')" :class="['flex flex-col items-center py-2 px-4 transition-colors', currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400']">
                 <i class="fas fa-calendar-alt text-xl mb-1"></i>
                 <span class="text-xs font-medium">行程</span>
@@ -330,7 +369,10 @@
                 const isEditing = ref(false);
                 const editingId = ref(null);
                 const showSettlement = ref(false);
-                const selectedDate = ref('2025-12-23');
+                
+                // 3. 預設日期初始化為空，等資料載入後設定
+                const selectedDate = ref('');
+                
                 const users = ['Han', 'Sylvia', 'Messi', 'Cheryl'];
                 const EURO_TO_TWD = 34.5;
                 const mainContainer = ref(null);
@@ -339,7 +381,7 @@
                 const expenses = ref([]);
                 const mapLoaded = ref(false);
 
-                const itineraryForm = reactive({ date: '2025-12-23', time: '09:00', title: '', location: '', notes: '' });
+                const itineraryForm = reactive({ date: '', time: '09:00', title: '', location: '', notes: '' });
                 const expenseForm = reactive({ title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
 
                 // Weather State (動態)
@@ -362,7 +404,7 @@
 
                 const uniqueDates = computed(() => {
                     const allDates = new Set(itineraryItems.value.map(i => i.date));
-                    // 確保重要日期存在
+                    // 預先加入一些關鍵日期，確保即使沒行程也有 Tab
                     ['2025-12-20', '2025-12-21', '2025-12-23', '2025-12-31', '2026-01-03', '2026-01-05'].forEach(d => allDates.add(d));
                     
                     return Array.from(allDates).sort().map((date, index) => {
@@ -414,7 +456,6 @@
 
                 // --- Methods: Weather Logic ---
                 const updateWeather = () => {
-                    // 根據當天第一個行程的地點推斷城市
                     let city = "Nordic";
                     let temp = "-3°C";
                     let condition = "cloudy";
@@ -431,25 +472,19 @@
                         else if (loc.match(/Bangkok|BKK|曼谷/i)) { city = "Bangkok"; temp = "30°C"; condition = "sunny"; }
                         else if (loc.match(/Beijing|PEK|北京/i)) { city = "Beijing"; temp = "0°C"; condition = "mist"; }
                     }
-
-                    currentWeather.city = city;
-                    currentWeather.temp = temp;
-                    currentWeather.condition = condition;
+                    currentWeather.city = city; currentWeather.temp = temp; currentWeather.condition = condition;
                 };
 
-                // --- Data Seeding (恢復行程) ---
+                // --- Data Seeding ---
                 const checkAndSeedData = async () => {
                     const snapshot = await itineraryRef.limit(1).get();
                     if (snapshot.empty) {
                         console.log("偵測到無資料，開始匯入完整行程...");
                         const seedData = [
-                            // 您的獨旅部分
                             { date: '2025-12-20', time: '18:50', title: '出發：台北飛曼谷', location: '桃園國際機場 (TPE)', notes: 'TG635 (泰國國際航空) TPE -> BKK (21:45)' },
                             { date: '2025-12-21', time: '00:05', title: '轉機：曼谷飛斯德哥爾摩', location: '蘇凡納布機場 (BKK)', notes: 'TG960 (泰國國際航空) BKK -> ARN (06:45)' },
                             { date: '2025-12-21', time: '09:00', title: '斯德哥爾摩市區獨旅', location: 'Stockholm City', notes: '探索老城區、瓦薩沈船博物館' },
                             { date: '2025-12-22', time: '09:00', title: '斯德哥爾摩市區獨旅', location: 'Stockholm City', notes: '地鐵藝術巡禮、攝影博物館' },
-                            
-                            // 朋友會合與北歐團
                             { date: '2025-12-23', time: '08:20', title: '前往赫爾辛基 (會合)', location: '斯德哥爾摩阿蘭達機場 (ARN)', notes: 'SK702 (SAS) ARN -> HEL (10:35)。朋友 KL1251 13:10 抵達。' },
                             { date: '2025-12-23', time: '14:00', title: '赫爾辛基大教堂與市區', location: 'Helsinki Cathedral', notes: '集市廣場、設計區、聖誕市集+晚餐' },
                             { date: '2025-12-24', time: '09:50', title: '飛往羅瓦涅米', location: '赫爾辛基機場 (HEL)', notes: 'AY549 HEL -> RVN (11:10)。' },
@@ -464,8 +499,6 @@
                             { date: '2025-12-31', time: '20:00', title: '新港跨年', location: 'Nyhavn, Copenhagen', notes: '港邊或市府廣場跨年，夜店慶祝。' },
                             { date: '2026-01-01', time: '10:00', title: '哥本哈根一日遊', location: 'Amalienborg', notes: '羅森堡城堡、阿馬林堡宮、Tivoli 花園。' },
                             { date: '2026-01-02', time: '09:00', title: '瑞典馬爾摩之旅', location: 'Malmö, Sweden', notes: '搭火車前往，參觀隆德大教堂。' },
-                            
-                            // 您的回程
                             { date: '2026-01-03', time: '10:00', title: '馬爾摩觀光', location: 'Turning Torso, Malmö', notes: '旋轉大樓、Malmo Castle。下午前往機場。' },
                             { date: '2026-01-03', time: '18:00', title: '回程：哥本哈根飛北京', location: '哥本哈根機場 (CPH)', notes: 'CA878 (國航) CPH -> PEK (09:45+1)。朋友續留哥本哈根逛 Tivoli。' },
                             { date: '2026-01-04', time: '09:45', title: '抵達北京轉機', location: '北京首都國際機場 (PEK)', notes: '等待轉機。' },
@@ -478,8 +511,6 @@
                             batch.set(docRef, doc);
                         });
                         await batch.commit();
-                        console.log("行程匯入完成！");
-                        // 強制重整以顯示數據
                         window.location.reload();
                     }
                 };
@@ -488,7 +519,6 @@
                 onMounted(() => {
                     checkAndSeedData();
 
-                    // Google Maps Script
                     if (GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY !== "") {
                         const script = document.createElement('script');
                         script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initMap`;
@@ -498,10 +528,15 @@
                         window.initMap = initMap;
                     }
 
-                    // Firebase Listeners
                     itineraryRef.orderBy('date').orderBy('time').onSnapshot(snapshot => {
                         itineraryItems.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         loading.value = false;
+                        
+                        // 3. 設定預設日期為第一個有效日期
+                        if (uniqueDates.value.length > 0 && !selectedDate.value) {
+                             selectedDate.value = uniqueDates.value[0].date;
+                        }
+                        
                         updateWeather();
                     });
 
@@ -510,23 +545,16 @@
                     });
                 });
                 
-                // 監聽 selectedDate 改變天氣
                 watch(selectedDate, () => {
                      updateWeather(); 
                      if (mainContainer.value) mainContainer.value.scrollTop = 0;
                 });
 
-                // 監聽 uniqueLocations 變化以更新地圖 (修復新增地點不顯示問題)
                 watch(uniqueLocations, () => {
-                    if (map && mapLoaded.value) {
-                         updateMapMarkers();
-                    }
+                    if (map && mapLoaded.value) updateMapMarkers();
                 }, { deep: true });
 
-                // --- Function: Select Date (修復點擊切換問題) ---
-                const selectDate = (date) => {
-                    selectedDate.value = date;
-                };
+                const selectDate = (date) => { selectedDate.value = date; };
 
                 // --- Google Maps Logic ---
                 const initMap = () => {
@@ -551,7 +579,6 @@
 
                 const updateMapMarkers = () => {
                     if (!map || !geocoder) return;
-                    // Clear old markers
                     markers.forEach(m => m.setMap(null));
                     markers = [];
                     if (userLocationMarker) userLocationMarker.setMap(null);
@@ -561,9 +588,8 @@
                     
                     if (locs.length === 0) return;
 
-                    // 批次處理 Geocoding (簡單版，不處理 Rate Limit，實際專案建議加 Delay)
                     locs.forEach((address, index) => {
-                        setTimeout(() => { // 稍微錯開請求
+                        setTimeout(() => { 
                             geocoder.geocode({ address: address }, (results, status) => {
                                 if (status === 'OK' && results[0]) {
                                     const position = results[0].geometry.location;
@@ -571,7 +597,7 @@
                                         map: map,
                                         position: position,
                                         title: address,
-                                        label: { text: (index + 1).toString(), color: "white", fontSize: "12px" },
+                                        label: { text: (index + 1).toString(), color: "white", fontSize: "12px", fontWeight: "bold" },
                                         animation: google.maps.Animation.DROP
                                     });
                                     markers.push(marker);
@@ -615,10 +641,7 @@
 
                 const jumpToMap = (location) => {
                     switchTab('map');
-                    // 等待 DOM 切換完成後執行聚焦
-                    setTimeout(() => {
-                        focusMap(location);
-                    }, 500);
+                    setTimeout(() => { focusMap(location); }, 500);
                 };
 
                 const switchTab = (tab) => {
@@ -628,7 +651,6 @@
                 
                 // --- UI Actions ---
                 const openAddModal = () => {
-                    // 預設日期為當前 Tab 選中的日期
                     itineraryForm.date = selectedDate.value;
                     showAddModal.value = true;
                 };
@@ -645,7 +667,7 @@
                     try {
                         if (isEditing.value) await itineraryRef.doc(editingId.value).update(item);
                         else await itineraryRef.add(item);
-                        closeModal(); // 需求 2: 關閉 BottomSheet
+                        closeModal(); 
                     } catch (e) { alert("儲存失敗: " + e.message); }
                 };
 
@@ -656,7 +678,7 @@
                     if (!item.title) return alert("請填寫項目");
                     try {
                         await expensesRef.add(item);
-                        closeModal(); // 需求 2: 關閉 BottomSheet
+                        closeModal(); 
                     } catch (e) { alert("儲存失敗: " + e.message); }
                 };
 
