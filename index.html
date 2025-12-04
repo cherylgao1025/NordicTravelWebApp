@@ -3,23 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>北歐極光之旅 (RTDB 修正版)</title>
+    <title>北歐極光之旅 (Realtime Database 修正版)</title>
     
-    <!-- 1. Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- 2. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 3. Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- 4. Firebase SDK (重要：必須包含 database-compat 用於 Realtime Database) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
     <script>
         // ==========================================
-        // 🚨 CONFIG AREA - 請填入您的金鑰 🚨
+        // 🚨 CONFIG AREA 🚨
         // ==========================================
         
         const firebaseConfig = {
@@ -54,11 +51,6 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Bottom Sheet 動畫 */
-        .sheet-enter-active, .sheet-leave-active { transition: transform 0.3s ease-in-out; }
-        .sheet-enter-from, .sheet-leave-to { transform: translateY(100%); }
-        
-        /* Map Container */
         #google-map { width: 100%; height: 100%; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
     </style>
@@ -73,7 +65,7 @@
                 <h1 class="text-xl font-bold text-gray-900 tracking-tight flex items-center">
                     {{ pageTitle }}
                     <span class="ml-2 text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded flex items-center shadow-sm">
-                        <i class="fas fa-check-circle mr-1"></i>RTDB
+                        <i class="fas fa-check-circle mr-1"></i>已連線
                     </span>
                 </h1>
                 <p class="text-xs text-gray-500 mt-0.5" v-if="currentTab === 'itinerary'">{{ daysLeftText }}</p>
@@ -85,37 +77,35 @@
             </button>
         </header>
 
-        <!-- Main Content (Scrollable) -->
+        <!-- Main Content -->
         <main class="flex-1 overflow-y-auto no-scrollbar relative bg-gray-50" ref="mainContainer">
             
-            <!-- Loading Spinner -->
             <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white z-50">
                 <div class="flex flex-col items-center">
                     <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-3"></div>
-                    <p class="text-sm text-gray-400">正在同步雲端資料...</p>
+                    <p class="text-sm text-gray-400">正在讀取資料庫...</p>
                 </div>
             </div>
 
             <!-- Tab: Itinerary -->
             <div v-show="currentTab === 'itinerary'" class="pb-24">
                 
-                <!-- Date Selector (Sticky) -->
+                <!-- Sticky Date Selector -->
                 <div class="sticky top-0 bg-white/95 backdrop-blur z-20 shadow-sm border-b border-gray-100">
                     <div class="flex overflow-x-auto no-scrollbar py-3 px-2 space-x-2">
-                        <button v-for="date in uniqueDates" :key="date.date"
-                            @click="selectDate(date.date)"
+                        <button v-for="dateObj in uniqueDates" :key="dateObj.date"
+                            @click="selectDate(dateObj.date)"
                             :class="['flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap', 
-                                     selectedDate === date.date ? 'bg-primary text-white shadow-md transform scale-105' : 'bg-gray-100 text-gray-500']">
-                            {{ date.display }}
+                                     selectedDate === dateObj.date ? 'bg-primary text-white shadow-md transform scale-105' : 'bg-gray-100 text-gray-500']">
+                            {{ dateObj.display }}
                         </button>
                     </div>
                 </div>
 
-                <!-- Itinerary Content -->
+                <!-- Itinerary List -->
                 <div class="px-4 py-4 space-y-4">
                     
-                    <!-- [Requirement 1] Weather Fragment (Scrollable inside view) -->
-                    <!-- 這是列表的第一個項目，可以隨頁面滑動 -->
+                    <!-- Weather Widget (Header) -->
                     <div @click="openWeatherSite" class="bg-gradient-to-r from-blue-600 to-blue-400 p-5 rounded-2xl text-white shadow-lg cursor-pointer transform transition active:scale-[0.98] relative overflow-hidden">
                         <div class="absolute right-0 top-0 opacity-10 text-9xl -mr-4 -mt-4"><i class="fas fa-cloud"></i></div>
                         <div class="relative z-10 flex items-center justify-between">
@@ -135,10 +125,15 @@
                         </div>
                     </div>
 
-                    <!-- Empty State -->
-                    <div v-if="filteredItinerary.length === 0" class="text-center py-10 text-gray-400">
-                        <i class="fas fa-snowflake text-4xl mb-3 opacity-30"></i>
-                        <p>點擊右上角 + 新增行程</p>
+                    <!-- No Data State -->
+                    <div v-if="uniqueDates.length === 0" class="text-center py-10 text-gray-400">
+                        <i class="fas fa-database text-4xl mb-3 opacity-30"></i>
+                        <p>資料庫目前是空的</p>
+                        <p class="text-xs mt-1">請點擊右上角新增行程</p>
+                    </div>
+                    
+                    <div v-else-if="filteredItinerary.length === 0" class="text-center py-10 text-gray-400">
+                        <p>這一天沒有行程</p>
                     </div>
 
                     <!-- Timeline Items -->
@@ -159,7 +154,7 @@
                                 <span class="underline decoration-dotted decoration-gray-400">{{ item.location }}</span>
                             </div>
                             
-                            <p v-if="item.notes" class="text-gray-600 text-sm mt-2 bg-gray-50 p-2 rounded-lg leading-relaxed">{{ item.notes }}</p>
+                            <p v-if="item.notes" class="text-gray-600 text-sm mt-2 bg-gray-50 p-2 rounded-lg leading-relaxed whitespace-pre-wrap">{{ item.notes }}</p>
                         </div>
                     </div>
                 </div>
@@ -175,7 +170,6 @@
                         </div>
                     </div>
 
-                    <!-- Settlements -->
                     <div v-if="settlements.length" class="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="font-bold text-green-800 flex items-center"><i class="fas fa-calculator mr-2"></i> 分帳結算</h3>
@@ -191,7 +185,6 @@
                         </div>
                     </div>
 
-                    <!-- Expense List -->
                     <div class="space-y-2">
                         <div v-for="exp in sortedExpenses" :key="exp.id" class="bg-white p-4 rounded-xl card-shadow">
                             <div class="flex justify-between items-start mb-2">
@@ -210,34 +203,29 @@
                 </div>
             </div>
 
-            <!-- Tab: Map (使用 v-show 保持 DOM 存在) -->
+            <!-- Tab: Map -->
             <div v-show="currentTab === 'map'" class="w-full h-full relative">
                 <div id="google-map" class="w-full h-full bg-gray-200"></div>
                 
-                <!-- Map Controls -->
                 <div class="absolute top-4 right-4 flex flex-col gap-2 z-10">
                     <button @click="focusCurrentLocation" class="bg-white p-3 rounded-full shadow-lg text-blue-600 active:bg-gray-100">
                         <i class="fas fa-crosshairs"></i>
                     </button>
                 </div>
 
-                <!-- [Requirement 2] Bottom Sheet Location List -->
-                <!-- 預設顯示標題欄，點擊後展開 -->
+                <!-- Bottom Sheet -->
                 <div 
                     class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-up z-20 flex flex-col transition-all duration-300 ease-out"
                     :style="{ height: isBottomSheetOpen ? '60%' : '60px', paddingBottom: '20px' }"
                 >
-                    <!-- Handle / Header -->
                     <div @click="isBottomSheetOpen = !isBottomSheetOpen" class="w-full h-[60px] flex items-center justify-between px-6 cursor-pointer border-b border-gray-100 flex-shrink-0">
                         <h3 class="font-bold text-gray-800">所有地點 ({{ uniqueLocations.length }})</h3>
                         <i :class="['fas text-gray-400 transition-transform', isBottomSheetOpen ? 'fa-chevron-down' : 'fa-chevron-up']"></i>
                     </div>
 
-                    <!-- List Content -->
                     <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50" v-show="isBottomSheetOpen">
                         <p v-if="uniqueLocations.length === 0" class="text-center text-gray-400 text-sm py-4">無地點資料</p>
                         
-                        <!-- [Requirement 3] List Items with Selected State -->
                         <div v-for="(loc, index) in uniqueLocations" :key="loc"
                             @click="selectLocation(loc)"
                             class="p-3 rounded-xl flex items-center justify-between cursor-pointer transition-all border"
@@ -357,13 +345,17 @@
                     return '地圖導覽';
                 });
 
+                // [修正] 完全根據 DB 資料生成日期，不再硬編碼
                 const uniqueDates = computed(() => {
                     const dates = new Set(itineraryItems.value.map(i => i.date));
-                    // Add default dates if empty
-                    ['2025-12-20', '2025-12-21', '2025-12-23'].forEach(d => dates.add(d));
-                    return Array.from(dates).filter(d=>d).sort().map(d => {
+                    // 只有當 DB 完全沒資料時，才不顯示任何日期，避免誤導
+                    return Array.from(dates).filter(d => d).sort().map(d => {
                         const dateObj = new Date(d);
-                        return { date: d, display: `${dateObj.getMonth()+1}/${dateObj.getDate()}` };
+                        // 修正月份顯示 (+1)
+                        return { 
+                            date: d, 
+                            display: `${dateObj.getMonth()+1}/${dateObj.getDate()} (${getDayName(d)})` 
+                        };
                     });
                 });
 
@@ -374,7 +366,9 @@
 
                 const daysLeftText = computed(() => {
                     if(!selectedDate.value) return '';
-                    return `Day ${uniqueDates.value.findIndex(d => d.date === selectedDate.value) + 1}`;
+                    // 根據日期列表的順序顯示第幾天
+                    const index = uniqueDates.value.findIndex(d => d.date === selectedDate.value);
+                    return index >= 0 ? `Day ${index + 1}` : '';
                 });
                 
                 const settlements = computed(() => {
@@ -397,15 +391,20 @@
                     return res;
                 });
 
+                const getDayName = (dateStr) => new Date(dateStr).toLocaleDateString('zh-TW', { weekday: 'short' }).replace('星期', '週');
+
                 // --- Methods ---
                 const snapshotToArray = (snap) => {
                     const list = [];
-                    snap.forEach(c => list.push({ id: c.key, ...c.val() }));
+                    snap.forEach(childSnapshot => {
+                        list.push({ id: childSnapshot.key, ...childSnapshot.val() });
+                    });
+                    console.log(`從 DB 載入了 ${list.length} 筆資料`); // [Debug]
                     return list;
                 };
 
                 onMounted(() => {
-                    // Auth Check
+                    // Auth
                     if (typeof __initial_auth_token !== 'undefined') auth.signInWithCustomToken(__initial_auth_token);
                     else auth.signInAnonymously();
 
@@ -413,7 +412,12 @@
                     itineraryRef.on('value', s => {
                         itineraryItems.value = snapshotToArray(s);
                         loading.value = false;
-                        if (!selectedDate.value && uniqueDates.value.length) selectedDate.value = uniqueDates.value[0].date;
+                        
+                        // [修正] 資料載入後，如果目前沒有選日期，自動選第一天
+                        if (!selectedDate.value && uniqueDates.value.length > 0) {
+                            selectedDate.value = uniqueDates.value[0].date;
+                        }
+                        
                         updateWeather();
                     });
                     expensesRef.on('value', s => expenses.value = snapshotToArray(s));
@@ -443,7 +447,6 @@
                                 map = new google.maps.Map(mapEl, { center: { lat: 60, lng: 10 }, zoom: 5, disableDefaultUI: true });
                             }
                             updateMapMarkers();
-                            // Force resize trigger
                             google.maps.event.trigger(map, 'resize');
                         }
                     });
@@ -454,12 +457,10 @@
                     markers.forEach(m => m.setMap(null));
                     markers = [];
                     const bounds = new google.maps.LatLngBounds();
-                    let hasLocs = false;
                     
                     uniqueLocations.value.forEach((loc, idx) => {
                         geocoder.geocode({ address: loc }, (res, status) => {
                             if(status === 'OK') {
-                                hasLocs = true;
                                 const pos = res[0].geometry.location;
                                 const marker = new google.maps.Marker({
                                     map, position: pos, 
@@ -484,12 +485,10 @@
                     });
                 };
 
-                // [Fix] Map reload issue
                 const switchTab = (tab) => {
                     currentTab.value = tab;
                     if(tab === 'map') {
                         isBottomSheetOpen.value = false;
-                        // Force map render slightly after tab switch
                         setTimeout(renderMap, 100); 
                     }
                 };
@@ -497,13 +496,12 @@
                 const selectLocation = (loc) => {
                     selectedLocation.value = loc;
                     focusMap(loc);
-                    isBottomSheetOpen.value = false; // Auto close sheet on select
+                    isBottomSheetOpen.value = false; 
                 };
 
                 const updateWeather = () => {
                     if(!filteredItinerary.value.length) return;
                     const loc = filteredItinerary.value[0].location || 'Nordic';
-                    // Mock logic
                     currentWeather.city = loc.split(',')[0];
                     currentWeather.temp = Math.floor(Math.random() * 5 - 5) + "°C";
                     currentWeather.condition = loc.includes('Rova') ? 'snow' : 'cloudy';
@@ -512,7 +510,7 @@
                 // UI Helpers
                 const selectDate = (d) => { selectedDate.value = d; updateWeather(); };
                 const openAddModal = () => { 
-                    itineraryForm.date = selectedDate.value; 
+                    itineraryForm.date = selectedDate.value || new Date().toISOString().split('T')[0]; 
                     showAddModal.value = true; 
                     if(currentTab.value === 'expenses') expenseForm.date = selectedDate.value;
                 };
@@ -547,14 +545,15 @@
                 const getUserPaid = (u) => expenses.value.filter(e => e.payer === u).reduce((s,e) => s+Number(e.amount), 0);
                 const jumpToMap = (loc) => { selectedLocation.value = loc; switchTab('map'); };
                 const openWeatherSite = () => window.open(`https://wttr.in/${currentWeather.city}`, '_blank');
+                const focusCurrentLocation = () => alert("定位功能需 HTTPS 支援");
 
                 return {
                     loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement,
                     itineraryItems, expenses, itineraryForm, expenseForm, currentWeather,
                     uniqueDates, selectedDate, filteredItinerary, uniqueLocations, sortedExpenses, totalExpense, settlements,
-                    isBottomSheetOpen, selectedLocation, // New States
+                    isBottomSheetOpen, selectedLocation,
                     selectDate, switchTab, openAddModal, closeModal, saveItinerary, saveExpense, deleteItem, editItem,
-                    formatMoneyEuro, formatMoneyEuroWithTWD, getWeatherIcon, getUserPaid, jumpToMap, openWeatherSite, selectLocation
+                    formatMoneyEuro, formatMoneyEuroWithTWD, getWeatherIcon, getUserPaid, jumpToMap, openWeatherSite, selectLocation, focusCurrentLocation
                 };
             }
         };
