@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>北歐極光之旅 (完整版)</title>
+    <title>北歐極光之旅 (完整版 - Debugged)</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,6 +15,7 @@
     <script>
         // ==========================================
         // 🚨 CONFIG AREA - 請在這裡填入您的金鑰 🚨
+        // 🚨 這是除錯的關鍵步驟，請勿留空 🚨
         // ==========================================
         
         // 1. 填入 Firebase Config
@@ -93,10 +94,8 @@
 </head>
 <body>
 
-    <!-- App Container: 使用 fixed inset-0 確保在手機上填滿可視區域，避免被網址列推擠 -->
     <div id="app" class="fixed inset-0 flex flex-col max-w-md mx-auto bg-white shadow-2xl overflow-hidden w-full z-0">
         
-        <!-- Header -->
         <header class="bg-white px-5 py-4 flex justify-between items-center z-10 border-b border-gray-100 shrink-0">
             <div class="flex-1">
                 <h1 class="text-xl font-bold text-gray-900 tracking-tight flex items-center">
@@ -114,7 +113,6 @@
             </button>
         </header>
 
-        <!-- Main Content -->
         <main class="flex-1 overflow-y-auto no-scrollbar relative bg-gray-50" ref="mainContainer">
             
             <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white z-50">
@@ -124,9 +122,7 @@
                 </div>
             </div>
 
-            <!-- Tab: Itinerary -->
             <div v-if="currentTab === 'itinerary'" class="pb-24">
-                <!-- Date Scroll -->
                 <div class="sticky top-0 bg-white/95 backdrop-blur z-10 shadow-sm border-b border-gray-100">
                     <div class="flex overflow-x-auto no-scrollbar py-3 px-2 space-x-2" ref="dateScroll">
                         <button v-for="date in uniqueDates" :key="date.date"
@@ -137,7 +133,6 @@
                         </button>
                     </div>
 
-                    <!-- Weather Widget -->
                     <div @click="openWeatherSite" class="flex items-center mx-4 my-2 p-3 bg-blue-50 rounded-xl cursor-pointer hover:bg-blue-100 transition active:scale-[0.98]">
                         <i :class="['text-3xl mr-3 weather-icon', getWeatherIcon(currentWeather.condition)]"></i>
                         <div class="text-left flex-1">
@@ -148,7 +143,6 @@
                     </div>
                 </div>
 
-                <!-- Itinerary List -->
                 <div class="px-4 py-6 space-y-4">
                     <div v-if="filteredItinerary.length === 0" class="text-center py-10 text-gray-400">
                         <i class="fas fa-snowflake text-4xl mb-3 opacity-30"></i>
@@ -167,7 +161,6 @@
                             </div>
                             <h3 class="font-bold text-gray-800 text-lg mb-1">{{ item.title }}</h3>
                             
-                            <!-- Location (Clickable) -->
                             <div v-if="item.location" class="flex items-center text-gray-500 text-sm mb-2 mt-2 cursor-pointer hover:text-blue-600 transition" @click="jumpToMap(item.location)">
                                 <i class="fas fa-map-marker-alt text-red-400 mr-2"></i>
                                 <span class="underline decoration-dotted decoration-gray-400">{{ item.location }}</span>
@@ -180,7 +173,6 @@
                 </div>
             </div>
 
-            <!-- Tab: Expenses -->
             <div v-if="currentTab === 'expenses'" class="pb-24">
                 <div class="p-5 space-y-3">
                     <div class="space-y-3">
@@ -239,38 +231,7 @@
                 </div>
             </div>
 
-            <!-- Tab: Map -->
             <div v-if="currentTab === 'map'" class="h-full flex flex-col">
-                <div class="shrink-0 h-1/3 overflow-y-auto no-scrollbar p-4 space-y-2 border-b border-gray-200">
-                    <h3 class="font-bold text-lg text-gray-800 mb-3">所有行程地點</h3>
-                    
-                    <!-- Current Location Button -->
-                    <button @click="focusCurrentLocation" 
-                        class="w-full bg-blue-50 p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-blue-100 active:scale-95 transition border border-blue-100">
-                        <div class="flex items-center text-blue-600">
-                            <i class="fas fa-location-arrow text-xl mr-3" style="width: 24px; text-align: center;"></i>
-                            <span class="font-bold text-left ml-3">目前位置</span>
-                        </div>
-                        <i class="fas fa-crosshairs text-blue-400 ml-2"></i>
-                    </button>
-
-                    <div v-if="uniqueLocations.length === 0" class="text-center py-5 text-gray-400 text-sm">
-                         <p>尚未新增任何地點</p>
-                    </div>
-
-                    <!-- Location Items with Numbers -->
-                    <button v-for="(loc, index) in uniqueLocations" :key="loc"
-                        @click="focusMap(loc)"
-                        class="w-full bg-white p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-gray-50 active:scale-95 transition">
-                        <div class="flex items-center overflow-hidden">
-                            <!-- Number Badge -->
-                            <div class="map-number-badge">{{ index + 1 }}</div>
-                            <span class="font-medium text-gray-700 text-left truncate flex-1">{{ loc }}</span>
-                        </div>
-                        <i class="fas fa-chevron-right text-gray-300 text-xs ml-2"></i>
-                    </button>
-                </div>
-                
                 <div class="flex-1 relative bg-gray-200">
                     <div id="google-map"></div>
                     <div v-if="!mapLoaded" class="absolute inset-0 flex items-center justify-center bg-gray-100/70 backdrop-blur-sm text-gray-500 font-medium">
@@ -282,8 +243,6 @@
 
         </main>
 
-        <!-- Bottom Navigation -->
-        <!-- Added pb-safe and border-t handling -->
         <nav class="bg-white border-t border-gray-100 py-2 px-4 flex justify-around items-center shrink-0 pb-safe z-50">
             <button @click="switchTab('itinerary')" :class="['flex flex-col items-center py-2 px-4 transition-colors', currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400']">
                 <i class="fas fa-calendar-alt text-xl mb-1"></i>
@@ -298,8 +257,48 @@
                 <span class="text-xs font-medium">地圖</span>
             </button>
         </nav>
+        
+        <div v-if="currentTab === 'map'" 
+            :class="['fixed inset-x-0 bottom-[60px] max-w-md mx-auto z-40 transition-transform duration-300 ease-out pb-safe', 
+                     isMapSheetOpen ? 'translate-y-0' : 'translate-y-full']"
+            @click.self="isMapSheetOpen = false"
+            style="height: auto; max-height: 85vh;">
+            
+            <div @click="isMapSheetOpen = !isMapSheetOpen" 
+                 class="p-3 bg-white rounded-t-3xl shadow-2xl cursor-pointer">
+                <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2"></div>
+                <div class="flex justify-between items-center px-2">
+                    <h3 class="font-bold text-lg text-gray-800">所有行程地點 ({{ uniqueLocations.length }})</h3>
+                    <i :class="['fas text-gray-400 transition-transform', isMapSheetOpen ? 'fa-chevron-down' : 'fa-chevron-up']"></i>
+                </div>
+            </div>
 
-        <!-- Add Modal -->
+            <div class="bg-white px-4 py-3 overflow-y-auto no-scrollbar" :style="{ maxHeight: 'calc(85vh - 50px - env(safe-area-inset-bottom))' }">
+                
+                <button @click="focusCurrentLocation" 
+                    class="w-full bg-blue-50 p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-blue-100 active:scale-95 transition border border-blue-100 my-2">
+                    <div class="flex items-center text-blue-600">
+                        <i class="fas fa-location-arrow text-xl mr-3" style="width: 24px; text-align: center;"></i>
+                        <span class="font-bold text-left ml-3">目前位置</span>
+                    </div>
+                    <i class="fas fa-crosshairs text-blue-400 ml-2"></i>
+                </button>
+
+                <div v-if="uniqueLocations.length === 0" class="text-center py-5 text-gray-400 text-sm">
+                     <p>尚未新增任何地點</p>
+                </div>
+
+                <button v-for="(loc, index) in uniqueLocations" :key="loc"
+                    @click="focusMap(loc)"
+                    class="w-full bg-white p-4 rounded-xl card-shadow flex items-center justify-between hover:bg-gray-50 active:scale-95 transition my-2">
+                    <div class="flex items-center overflow-hidden">
+                        <div class="map-number-badge">{{ index + 1 }}</div>
+                        <span class="font-medium text-gray-700 text-left truncate flex-1">{{ loc }}</span>
+                    </div>
+                    <i class="fas fa-chevron-right text-gray-300 text-xs ml-2"></i>
+                </button>
+            </div>
+        </div>
         <div v-if="showAddModal" @click.self="closeModal" class="fixed inset-0 bg-black/50 flex items-end z-50 animate-fadeIn">
             <div class="bg-white w-full rounded-t-3xl p-6 pb-safe max-h-[85vh] overflow-y-auto slide-up">
                 <div class="flex justify-between items-center mb-5">
@@ -349,6 +348,16 @@
                 </div>
             </div>
         </div>
+        
+        <div v-if="toast.isVisible" 
+             :class="['fixed inset-x-4 bottom-[80px] z-[99] p-4 rounded-lg shadow-xl text-white transition-opacity duration-300', 
+                     toast.isError ? 'bg-red-500' : 'bg-green-500']">
+            <div class="flex items-center">
+                <i :class="['text-xl mr-3', toast.isError ? 'fas fa-exclamation-triangle' : 'fas fa-check-circle']"></i>
+                <p class="text-sm font-medium">{{ toast.message }}</p>
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -369,9 +378,17 @@
                 const isEditing = ref(false);
                 const editingId = ref(null);
                 const showSettlement = ref(false);
-                
-                // 3. 預設日期初始化為空，等資料載入後設定
                 const selectedDate = ref('');
+                
+                // [新增] Bottom Sheet 狀態 (地圖)
+                const isMapSheetOpen = ref(false); 
+
+                // [新增] Toast 狀態
+                const toast = reactive({
+                    message: '',
+                    isVisible: false,
+                    isError: false,
+                });
                 
                 const users = ['Han', 'Sylvia', 'Messi', 'Cheryl'];
                 const EURO_TO_TWD = 34.5;
@@ -474,6 +491,27 @@
                     }
                     currentWeather.city = city; currentWeather.temp = temp; currentWeather.condition = condition;
                 };
+                
+                // [修改] openWeatherSite: 優先嘗試開啟原生 App
+                const openWeatherSite = () => {
+                    const city = currentWeather.city;
+                    if (city === 'Nordic' || city === 'N/A') {
+                         return showToast('目前無精確地點資訊，無法提供天氣連結', true);
+                    }
+
+                    // 嘗試開啟 iOS/iPadOS 原生 App (Safari 支援)
+                    // weather:// 會嘗試開啟 Apple Weather App
+                    const nativeUrl = `weather://?action=view&name=${city}`; 
+
+                    // 嘗試使用原生 App URL
+                    window.location.href = nativeUrl;
+
+                    // 設定延遲，如果原生 App 開啟失敗 (或在 Android/PC 上)，則 fallback 到網頁
+                    setTimeout(() => {
+                        // 檢查是否已切換到原生 App，若無則開啟網頁
+                        window.open(`https://wttr.in/${city}`, '_blank');
+                    }, 300); 
+                };
 
                 // --- Data Seeding ---
                 const checkAndSeedData = async () => {
@@ -532,7 +570,7 @@
                         itineraryItems.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         loading.value = false;
                         
-                        // 3. 設定預設日期為第一個有效日期
+                        // 設定預設日期為第一個有效日期
                         if (uniqueDates.value.length > 0 && !selectedDate.value) {
                              selectedDate.value = uniqueDates.value[0].date;
                         }
@@ -616,6 +654,7 @@
                         if (status === 'OK') {
                             map.setCenter(results[0].geometry.location);
                             map.setZoom(15);
+                            isMapSheetOpen.value = false; // [新增] 點擊地點後收合 Bottom Sheet
                         }
                     });
                 };
@@ -633,6 +672,7 @@
                             });
                             map.setCenter(pos);
                             map.setZoom(15);
+                            isMapSheetOpen.value = false; // [新增] 點擊後收合
                         }, () => alert("無法獲取您的位置"));
                     } else {
                         alert("您的瀏覽器不支援定位功能");
@@ -646,7 +686,10 @@
 
                 const switchTab = (tab) => {
                     currentTab.value = tab;
-                    if (tab === 'map') setTimeout(renderMap, 100);
+                    if (tab === 'map') {
+                        setTimeout(renderMap, 100);
+                        isMapSheetOpen.value = true; // [修改] 切換到地圖時預設展開 Bottom Sheet
+                    }
                 };
                 
                 // --- UI Actions ---
@@ -660,17 +703,36 @@
                     Object.assign(itineraryForm, { date: selectedDate.value, time: '09:00', title: '', location: '', notes: '' });
                     Object.assign(expenseForm, { title: '', amount: '', date: new Date().toISOString().split('T')[0], payer: users[0], beneficiaries: [...users] });
                 };
+                
+                // [新增] 顯示 Toast 訊息的函式
+                const showToast = (message, isError = false) => {
+                    toast.message = message;
+                    toast.isError = isError;
+                    toast.isVisible = true;
+                    setTimeout(() => { toast.isVisible = false; }, 3000);
+                };
 
+                // [修改] saveItinerary: 加入 Toast 處理
                 const saveItinerary = async () => {
                     const item = { ...itineraryForm };
                     if (!item.title) return alert("請填寫標題");
                     try {
-                        if (isEditing.value) await itineraryRef.doc(editingId.value).update(item);
-                        else await itineraryRef.add(item);
+                        if (isEditing.value) {
+                            await itineraryRef.doc(editingId.value).update(item);
+                            showToast('行程更新成功！', false);
+                        }
+                        else {
+                            await itineraryRef.add(item);
+                            showToast('行程新增成功！', false);
+                        }
                         closeModal(); 
-                    } catch (e) { alert("儲存失敗: " + e.message); }
+                    } catch (e) { 
+                        console.error("儲存行程失敗: ", e);
+                        showToast(`儲存行程失敗: ${e.message.substring(0, 30)}...`, true); 
+                    }
                 };
 
+                // [修改] saveExpense: 加入 Toast 處理
                 const saveExpense = async () => {
                     const amount = Number(parseFloat(expenseForm.amount).toFixed(2));
                     if (isNaN(amount) || amount <= 0) return alert('請輸入有效的金額');
@@ -678,8 +740,12 @@
                     if (!item.title) return alert("請填寫項目");
                     try {
                         await expensesRef.add(item);
+                        showToast('支出新增成功！', false);
                         closeModal(); 
-                    } catch (e) { alert("儲存失敗: " + e.message); }
+                    } catch (e) { 
+                        console.error("儲存支出失敗: ", e);
+                        showToast(`儲存支出失敗: ${e.message.substring(0, 30)}...`, true);
+                    }
                 };
 
                 // --- Helpers ---
@@ -695,7 +761,7 @@
                     if (parts.length > 1 && parts[1].length > 2) { parts[1] = parts[1].substring(0, 2); value = parts.join('.'); }
                     expenseForm.amount = value;
                 };
-                const openWeatherSite = () => window.open(`https://wttr.in/${currentWeather.city}`, '_blank');
+                
                 const getWeatherIcon = (condition) => {
                     if (condition.includes('sun')) return 'fas fa-sun text-yellow-400';
                     if (condition.includes('snow')) return 'fas fa-snowflake text-blue-200';
@@ -705,11 +771,22 @@
                 const getUserPaid = (u) => expenses.value.filter(e => e.payer === u).reduce((s,e) => s+e.amount, 0);
                 const toggleAllBeneficiaries = () => expenseForm.beneficiaries = expenseForm.beneficiaries.length === users.length ? [] : [...users];
                 const toggleBeneficiary = (u) => { const i = expenseForm.beneficiaries.indexOf(u); i>-1 ? expenseForm.beneficiaries.splice(i,1) : expenseForm.beneficiaries.push(u); };
-                const deleteItem = async (id, col) => { if (confirm('確定刪除？')) await db.collection(col).doc(id).delete(); };
+                
+                const deleteItem = async (id, col) => { 
+                    if (confirm('確定刪除？')) {
+                        try {
+                            await db.collection(col).doc(id).delete();
+                            showToast('項目刪除成功！', false);
+                        } catch (e) {
+                             showToast('刪除失敗！', true);
+                        }
+                    }
+                };
+                
                 const editItem = (item) => { isEditing.value = true; editingId.value = item.id; Object.assign(itineraryForm, { ...item }); currentTab.value = 'itinerary'; showAddModal.value = true; };
 
                 return {
-                    loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement, currentWeather, mapLoaded,
+                    loading, currentTab, pageTitle, daysLeftText, users, showAddModal, isEditing, showSettlement, currentWeather, mapLoaded, isMapSheetOpen, toast,
                     uniqueDates, selectedDate, filteredItinerary, totalExpense, sortedExpenses, uniqueLocations, settlements,
                     itineraryForm, expenseForm, mainContainer,
                     selectDate, formatMoneyEuro, formatMoneyEuroWithTWD, getUserPaid, toggleAllBeneficiaries, toggleBeneficiary, closeModal, editItem, saveItinerary, deleteItem, saveExpense, getWeatherIcon,
